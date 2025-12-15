@@ -1,0 +1,70 @@
+{
+  "pipeline_settings": {
+    "batch_size": 24,
+    "auto_cleanup": true,
+    "keep_frames": true,
+    "retry_count": 3,
+    "delay_between_episodes": 2
+  },
+  "anime": [
+    {
+      "anime_id": "jujutsu_kaisen_s2",
+      "title": "Jujutsu Kaisen Season 2",
+      "title_english": "Sorcery Fight Season 2",
+      "title_japanese": "呪術廻戦 第2期",
+      "title_vietnamese": "Chú Thuật Hồi Chiến Phần 2",
+      "genres": [
+        "Action",
+        "Supernatural",
+        "School"
+      ],
+      "year": 2023,
+      "rating": 8.8,
+      "studio": "MAPPA",
+      "studios": [
+        "MAPPA"
+      ],
+      "season": "2023-Summer",
+      "description": "Sequel to Jujutsu Kaisen...",
+      "episodes": [
+        {
+          "episode": 1,
+          "crawl_url": "https://vuighe.cam/chu-thuat-hoi-chien-phan-2/tap-1/",
+          "fps": 1.0
+        },
+        {
+          "episode": 2,
+          "crawl_url": "https://vuighe.cam/chu-thuat-hoi-chien-phan-2/tap-2/",
+          "fps": 1.0
+        }
+      ]
+    },
+    {
+      "anime_id": "one_piece",
+      "title": "One Piece",
+      "title_english": "One Piece",
+      "title_japanese": "ワンピース",
+      "title_vietnamese": "Vua Hải Tặc",
+      "genres": [
+        "Action",
+        "Adventure",
+        "Fantasy"
+      ],
+      "year": 1999,
+      "rating": 8.7,
+      "studio": "Toei Animation",
+      "studios": [
+        "Toei Animation"
+      ],
+      "season": "1999-Fall",
+      "description": "Follows the adventures of Monkey D. Luffy...",
+      "episodes": [
+        {
+          "episode": 1,
+          "video_path": "./data/videos/one_piece/ep001.mp4",
+          "fps": 1.0
+        }
+      ]
+    }
+  ]
+}
