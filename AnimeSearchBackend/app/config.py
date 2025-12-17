@@ -33,10 +33,15 @@ class Settings(BaseSettings):
     ELASTIC_USER: Optional[str] = os.getenv("ELASTIC_USER")
     ELASTIC_PASSWORD: Optional[str] = os.getenv("ELASTIC_PASSWORD")
     
-    # AI Model Configuration
-    MODEL_NAME: str = os.getenv("MODEL_NAME", "clip-vit-base-patch32")
+    # AI Model Configuration (Legacy - kept for backward compatibility)
+    MODEL_NAME: str = os.getenv("MODEL_NAME", "siglip2")
     MODEL_PATH: Optional[str] = os.getenv("MODEL_PATH")
     DEVICE: str = os.getenv("DEVICE", "cpu")  # cpu hoặc cuda
+    
+    # External Embedding Service Configuration
+    AI_SERVICE_URL: str = os.getenv("AI_SERVICE_URL", "http://embedding-service:8000/v1/embeddings")
+    AI_MODEL: str = os.getenv("AI_MODEL", "siglip2")
+    AI_SERVICE_TIMEOUT: int = int(os.getenv("AI_SERVICE_TIMEOUT", "30"))  # seconds
     
     # Search Configuration
     TOP_K: int = int(os.getenv("TOP_K", "10"))

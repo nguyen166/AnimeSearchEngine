@@ -1,0 +1,21 @@
+{
+  "output_dir": "./data/raw_videos",
+  "headless": true,
+  "delay_between_episodes": 5,
+  "anime": [
+    {
+      "anime_id": "one-piece",
+      "season": "",
+      "episodes": [
+        {
+          "episode": 1,
+          "url": "https://vuighe.cam/one-piece/tap-1"
+        },
+        {
+          "episode": 2,
+          "url": "https://vuighe.cam/one-piece/tap-2"
+        }
+      ]
+    }
+  ]
+}

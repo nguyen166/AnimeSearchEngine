@@ -3,6 +3,10 @@ FastAPI Main Application
 Khởi tạo FastAPI app và cấu hình routes
 """
 
+import warnings
+# Suppress pkg_resources deprecation warning from pymilvus
+warnings.filterwarnings('ignore', message='.*pkg_resources is deprecated.*')
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.routers import search

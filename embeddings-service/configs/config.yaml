@@ -1,0 +1,6 @@
+models:
+  siglip2:
+    model: "google/siglip2-so400m-patch16-naflex"
+    max_batch_size: 16
+    max_num_requests: 64
+    device: "cuda:0"

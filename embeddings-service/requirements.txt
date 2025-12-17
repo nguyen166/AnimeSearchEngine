@@ -1,0 +1,9 @@
+transformers>=4.37.0
+sentencepiece
+protobuf
+torch
+pillow
+flask
+uvicorn
+fastapi
+python-multipart

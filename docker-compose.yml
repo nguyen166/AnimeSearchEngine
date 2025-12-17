@@ -99,6 +99,45 @@ services:
     networks:
       - anime_search_net
 
+  ai-service:
+    build: ./embeddings-service
+    container_name: anime-embeddings-service
+    ports:
+      - "8001:8000" # Map ra port 8001 máy bạn
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu] # Dùng GPU nếu có (nếu không có thì xóa đoạn deploy này đi)
+    volumes:
+      - ./embeddings-service-service/models_cache:/root/.cache # Cache model để không phải tải lại mỗi lần bật
+    networks:
+      - anime_search_net
+
+  # --- 3. API GATEWAY (BACKEND CỦA BẠN) ---
+  api-gateway:
+    build: ./AnimeSearchBackend
+    container_name: anime-api-server
+    ports:
+      - "8000:8000"
+    environment:
+      - MILVUS_HOST=milvus-standalone
+      - MILVUS_PORT=19530
+      - ELASTIC_HOST=elasticsearch
+      - ELASTIC_PORT=9200
+      - AI_SERVICE_URL=http://anime-embeddings-service:8000/v1/embeddings
+    depends_on:
+      milvus:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+      ai-service:
+        condition: service_started
+    networks:
+      - anime_search_net
+
 networks:
   anime_search_net:
     driver: bridge

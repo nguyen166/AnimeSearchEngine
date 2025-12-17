@@ -115,7 +115,7 @@ docker-compose logs -f
 
 ```powershell
 # Test Milvus (should return version info)
-curl http://localhost:19530
+curl http://localhost:9091/healthz
 
 # Test Elasticsearch (should return cluster info)
 curl http://localhost:9200
@@ -209,12 +209,7 @@ python -c "import fastapi, torch, transformers; print('✅ Imports OK')"
 
 ```powershell
 # Test script
-python -c "
-from app.core.milvus import milvus_client
-from app.core.elastic import elastic_client
-print('✅ Milvus:', milvus_client._client is not None)
-print('✅ Elasticsearch:', elastic_client._client is not None)
-"
+python test_milvus.py
 ```
 
 **Expected output:**

@@ -1,0 +1,39 @@
+# Data Pipeline Dependencies
+# Crawler + Video Ingestion for Anime Search Engine
+
+# ============================================================================
+# Video Processing
+# ============================================================================
+opencv-python>=4.9.0.80
+opencv-python-headless>=4.9.0.80  # Alternative for servers without display
+scenedetect[opencv]>=0.6.0  # Smart keyframe extraction via scene detection
+
+# ============================================================================
+# Web Crawling (Selenium)
+# ============================================================================
+selenium>=4.15.0
+selenium-stealth>=1.0.6
+webdriver-manager>=4.0.0  # Auto-download chromedriver
+
+# ============================================================================
+# HTTP Client
+# ============================================================================
+requests>=2.31.0
+
+# ============================================================================
+# Databases
+# ============================================================================
+# Vector Database
+pymilvus>=2.3.5
+
+# Metadata Search (Pin to 8.x to match ES server 8.11.1)
+elasticsearch>=8.0.0,<9.0.0
+
+# ============================================================================
+# Configuration & Utilities
+# ============================================================================
+python-dotenv>=1.0.0
+pydantic-settings>=2.0.0  # Settings management with validation
+
+# Optional: Progress bar
+tqdm>=4.66.0

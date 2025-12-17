@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+pymilvus
+elasticsearch>=8.0.0,<9.0.0  # Must match server version 8.x
+requests
+python-dotenv
+pydantic-settings
+python-multipart
+Pillow  # Image processing for embedding service
+deep-translator  # Translation service
+google-generativeai  # Gemini API for translation
