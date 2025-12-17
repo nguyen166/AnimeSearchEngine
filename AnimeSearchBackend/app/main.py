@@ -3,12 +3,14 @@ FastAPI Main Application
 Khởi tạo FastAPI app và cấu hình routes
 """
 
+import os
 import warnings
 # Suppress pkg_resources deprecation warning from pymilvus
 warnings.filterwarnings('ignore', message='.*pkg_resources is deprecated.*')
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from app.routers import search
 from app.config import settings
 
@@ -30,6 +32,11 @@ app.add_middleware(
 
 # Include routers
 app.include_router(search.router, prefix="/api", tags=["search"])
+
+# Mount static files for serving frame images
+# Ensure the directory exists before mounting
+os.makedirs(settings.FRAME_DIR, exist_ok=True)
+app.mount("/static/frames", StaticFiles(directory=settings.FRAME_DIR), name="frames")
 
 
 @app.get("/")

@@ -1,34 +1,59 @@
 """
-Translation Service
-Dịch thuật văn bản bằng Google Gemini, Google Translate hoặc Local Model
+Query Refinement Service
+Refines user search queries into detailed visual descriptions for CLIP-based semantic search.
+Supports Gemini API (recommended), Google Translate (fallback), or Local Model.
 """
 
 import logging
 import time
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from enum import Enum
 from functools import lru_cache
+import threading
 
 from app.config import settings
 
 logger = logging.getLogger(__name__)
 
+# ============================================================================
+# Rate Limiting Configuration for Gemini API
+# ============================================================================
+# Gemini free tier limits:
+# - 15 requests per minute (RPM)
+# - 1 million tokens per minute (TPM)
+# - 1,500 requests per day (RPD)
+GEMINI_MIN_INTERVAL = 4.0  # Minimum seconds between API calls (15 RPM = 4s interval)
+GEMINI_TIMEOUT = 30.0      # Timeout for each API call in seconds
+GEMINI_MAX_RETRIES = 3     # Maximum retry attempts
+GEMINI_RETRY_DELAY = 5.0   # Initial delay between retries (exponential backoff)
 
-class TranslationMode(str, Enum):
-    """Translation mode options"""
-    ONLINE = "ONLINE"      # Google Translate (scraped)
-    LOCAL = "LOCAL"        # HuggingFace local model
-    GEMINI = "GEMINI"      # Google Gemini API
+# System prompt for Gemini to refine queries into visual descriptions
+QUERY_REFINEMENT_SYSTEM_PROMPT = """You are an assistant that refines search queries without changing their intent. Generate **3 improved versions** of the input query that increase clarity, readability, or retrieval accuracy — but must not alter the original intent. The refined queries should be in English.
+Strictly follow this format:
+[Refined query 1]
+[Refined query 2]
+[Refined query 3]
+"""
 
 
-class TranslationService:
+class RefinementMode(str, Enum):
+    """Query refinement mode options"""
+    ONLINE = "ONLINE"      # Google Translate (basic translation fallback)
+    LOCAL = "LOCAL"        # HuggingFace local model (basic translation)
+    GEMINI = "GEMINI"      # Google Gemini API (full refinement - recommended)
+
+
+class QueryRefinementService:
     """
-    Service để dịch văn bản từ tiếng Việt sang tiếng Anh
+    Service to refine search queries into detailed visual descriptions for CLIP search.
     
-    Hỗ trợ 3 chế độ:
-    - ONLINE: Google Translate (miễn phí nhưng không ổn định)
-    - LOCAL: HuggingFace model (chạy local, chậm hơn)
-    - GEMINI: Google Gemini API (hiểu ngữ cảnh tốt, miễn phí trong quota)
+    Supports 3 modes:
+    - GEMINI: Google Gemini API (recommended - full query refinement with visual expansion)
+    - ONLINE: Google Translate (fallback - basic translation only)
+    - LOCAL: HuggingFace model (fallback - basic translation only)
+    
+    The GEMINI mode transforms queries like "Luffy đánh nhau" into rich descriptions
+    like "Monkey D. Luffy in intense combat scene, throwing powerful punch..."
     """
     
     _instance = None
@@ -36,7 +61,7 @@ class TranslationService:
     
     def __new__(cls):
         if cls._instance is None:
-            cls._instance = super(TranslationService, cls).__new__(cls)
+            cls._instance = super(QueryRefinementService, cls).__new__(cls)
         return cls._instance
     
     def __init__(self):
@@ -49,32 +74,36 @@ class TranslationService:
         self.model = None
         self.tokenizer = None
         
-        # Cache để tránh dịch lại các câu đã dịch
-        self._cache: Dict[str, str] = {}
+        # Cache to avoid re-processing the same queries
+        self._cache: Dict[str, List[str]] = {}
         
-        logger.info(f"Initializing TranslationService with mode: {self.mode}")
+        # Rate limiting for Gemini API
+        self._last_gemini_call = 0.0
+        self._gemini_lock = threading.Lock()
+        
+        logger.info(f"Initializing QueryRefinementService with mode: {self.mode}")
         self._setup_provider()
     
     def _setup_provider(self):
-        """Khởi tạo translation provider dựa trên mode"""
+        """Initialize refinement provider based on mode"""
         try:
-            if self.mode == TranslationMode.GEMINI:
+            if self.mode == RefinementMode.GEMINI:
                 self._setup_gemini()
-            elif self.mode == TranslationMode.ONLINE:
+            elif self.mode == RefinementMode.ONLINE:
                 self._setup_online()
-            elif self.mode == TranslationMode.LOCAL:
+            elif self.mode == RefinementMode.LOCAL:
                 self._setup_local()
             else:
-                logger.warning(f"Unknown translation mode: {self.mode}, fallback to ONLINE")
-                self.mode = TranslationMode.ONLINE
+                logger.warning(f"Unknown refinement mode: {self.mode}, fallback to ONLINE")
+                self.mode = RefinementMode.ONLINE
                 self._setup_online()
                 
-            logger.info(f"Translation provider initialized: {self.mode}")
+            logger.info(f"Query refinement provider initialized: {self.mode}")
             
         except Exception as e:
-            logger.error(f"Failed to setup translation provider: {e}")
+            logger.error(f"Failed to setup refinement provider: {e}")
             logger.warning("Fallback to ONLINE mode")
-            self.mode = TranslationMode.ONLINE
+            self.mode = RefinementMode.ONLINE
             self._setup_online()
     
     def _setup_gemini(self):
@@ -99,16 +128,17 @@ class TranslationService:
             
             logger.info(f"Gemini client initialized: {model_name}")
             
-            # Test connection
-            test_response = self.client.models.generate_content(
-                model=model_name,
-                contents="Translate to English: Xin chào",
-                config=types.GenerateContentConfig(
-                    temperature=0.1,
-                    max_output_tokens=100
+            # Test connection with a simple refinement (with rate limiting)
+            try:
+                test_response = self._call_gemini_with_rate_limit(
+                    contents="Refine this anime search query: Luffy",
+                    temperature=0.7,
+                    max_output_tokens=500
                 )
-            )
-            logger.info(f"Gemini test successful: {test_response.text[:50]}")
+                logger.info(f"Gemini test successful: {test_response[:50]}")
+            except Exception as test_error:
+                logger.warning(f"Gemini test call failed (may be rate limited): {test_error}")
+                # Don't fail initialization, just warn
             
         except ImportError:
             raise ImportError(
@@ -156,103 +186,239 @@ class TranslationService:
                 "Install it: pip install transformers"
             )
     
-    def translate(self, text: str, use_cache: bool = True, target_lang: str = "en") -> str:
+    def refine(self, text: str, use_cache: bool = True) -> List[str]:
         """
-        Dịch văn bản từ tiếng Việt sang tiếng Anh (hoặc ngôn ngữ đích khác)
+        Refine a search query into multiple detailed visual descriptions for CLIP search.
+        
+        For GEMINI mode: Expands query with visual keywords and generates 3 variants.
+        For ONLINE/LOCAL modes: Falls back to basic translation (single variant).
         
         Args:
-            text: Văn bản cần dịch
-            use_cache: Sử dụng cache để tránh dịch lại
-            target_lang: Target language (default: "en")
+            text: Raw user query (can be Vietnamese or English)
+            use_cache: Use cache to avoid re-processing same queries
             
         Returns:
-            Văn bản đã dịch
+            List of refined English queries optimized for CLIP-based image search (up to 3 variants)
+            
+        Example:
+            Input: "Luffy đánh nhau"
+            Output: [
+                "Monkey D. Luffy in intense combat scene, throwing powerful punch...",
+                "Luffy fighting enemy, stretching rubber fist attack...",
+                "Straw Hat Luffy in fierce battle, Gear technique activation..."
+            ]
         """
         if not text or not text.strip():
-            return text
+            return [text] if text else []
+        
+        text = text.strip()
         
         # Check cache
         if use_cache and text in self._cache:
-            logger.debug(f"Using cached translation for: {text[:50]}")
+            logger.debug(f"Using cached refinement for: {text[:50]}")
             return self._cache[text]
         
         start_time = time.time()
-        translated = ""
+        variants: List[str] = []
         
         try:
-            if self.mode == TranslationMode.GEMINI:
-                translated = self._translate_gemini(text)
-            elif self.mode == TranslationMode.ONLINE:
+            if self.mode == RefinementMode.GEMINI:
+                variants = self._refine_with_gemini(text)
+            elif self.mode == RefinementMode.ONLINE:
+                # Fallback: basic translation (single variant)
                 translated = self._translate_online(text)
-            elif self.mode == TranslationMode.LOCAL:
+                variants = [translated] if translated else [text]
+            elif self.mode == RefinementMode.LOCAL:
+                # Fallback: basic translation (single variant)
                 translated = self._translate_local(text)
+                variants = [translated] if translated else [text]
             
             elapsed = time.time() - start_time
-            logger.info(f"Translation completed in {elapsed:.3f}s: '{text[:50]}' -> '{translated[:50]}'")
+            logger.info(f"Query refinement completed in {elapsed:.3f}s")
+            logger.info(f"  Original: '{text[:80]}'")
+            logger.info(f"  Variants: {len(variants)} generated")
+            for i, v in enumerate(variants):
+                logger.info(f"    [{i+1}] '{v[:60]}...'" if len(v) > 60 else f"    [{i+1}] '{v}'")
             
             # Cache result
-            if use_cache:
-                self._cache[text] = translated
+            if use_cache and variants:
+                self._cache[text] = variants
             
-            return translated
+            return variants
             
         except Exception as e:
-            logger.error(f"Translation failed with {self.mode}: {e}")
+            logger.error(f"Query refinement failed with {self.mode}: {e}")
             
-            # Fallback to online translator
-            if self.mode != TranslationMode.ONLINE:
+            # Fallback to online translator for basic translation
+            if self.mode != RefinementMode.ONLINE:
                 logger.warning("Attempting fallback to ONLINE translator")
                 try:
                     translated = self._translate_online_fallback(text)
+                    variants = [translated] if translated else [text]
                     if use_cache:
-                        self._cache[text] = translated
-                    return translated
+                        self._cache[text] = variants
+                    return variants
                 except Exception as fallback_error:
                     logger.error(f"Fallback translation also failed: {fallback_error}")
             
-            # Return original text if all fails
-            logger.warning("All translation methods failed, returning original text")
-            return text
+            # Return original text if all methods fail
+            logger.warning("All refinement methods failed, returning original text")
+            return [text]
     
-    def _translate_gemini(self, text: str) -> str:
-        """Dịch bằng Google Gemini API"""
+    # Backward compatibility alias
+    def translate(self, text: str, use_cache: bool = True, target_lang: str = "en") -> str:
+        """Alias for refine() - maintained for backward compatibility. Returns first variant."""
+        variants = self.refine(text, use_cache)
+        return variants[0] if variants else text
+    
+    def _refine_with_gemini(self, text: str) -> List[str]:
+        """
+        Refine query using Google Gemini API with visual expansion.
+        
+        This is the primary refinement method that transforms queries into
+        detailed visual descriptions optimized for CLIP-based image search.
+        Returns 3 variants of the refined query.
+        
+        Includes rate limiting, timeout, and retry logic to handle API limits.
+        """
         if not self.client:
             raise RuntimeError("Gemini client not initialized")
         
-        # Prompt engineering để đảm bảo output clean
-        prompt = f"""Translate the following Vietnamese text to English. 
-Return ONLY the translated text, no explanation or additional words.
-Preserve anime terminology (e.g., "Haki", "Bankai", "Chakra") when appropriate.
+        # Construct the prompt with system instructions
+        prompt = f"""{QUERY_REFINEMENT_SYSTEM_PROMPT}
 
-Vietnamese text: {text}
-
-English translation:"""
+Input: "{text}"
+Output:"""
         
-        try:
-            from google.genai import types
-            
-            response = self.client.models.generate_content(
-                model=self.model_name,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    temperature=0.1,  # Low temperature for consistent translation
-                    max_output_tokens=500,
-                    top_p=0.8
-                )
-            )
-            
-            # Extract text from response
-            translated = response.text.strip()
+        # Call Gemini with rate limiting and retry
+        response = self._call_gemini_with_rate_limit(
+            contents=prompt,
+            temperature=0.8,  # Slightly higher for varied outputs
+            max_output_tokens=1000
+        )
+        
+        # Parse the response into variants (one per line)
+        variants = []
+        for line in response.split('\n'):
+            line = line.strip()
+            if not line:
+                continue
             
             # Clean up potential artifacts
-            if translated.startswith('"') and translated.endswith('"'):
-                translated = translated[1:-1]
+            if line.startswith('"') and line.endswith('"'):
+                line = line[1:-1]
             
-            return translated
+            # Remove any prefix like "1." or "- " or "Output:"
+            prefixes_to_remove = [
+                "Refined Description:",
+                "Output:",
+                "Result:",
+                "**Refined Description:**",
+                "1.", "2.", "3.",
+                "- ", "* "
+            ]
+            for prefix in prefixes_to_remove:
+                if line.startswith(prefix):
+                    line = line[len(prefix):].strip()
             
-        except Exception as e:
-            logger.error(f"Gemini API error: {e}")
-            raise
+            if line and len(line) > 10:  # Only add meaningful variants
+                variants.append(line)
+        
+        # Ensure we have at least 1 variant, max 3
+        if not variants:
+            variants = [text]  # Fallback to original
+        
+        return variants[:3]  # Return up to 3 variants
+    
+    def _call_gemini_with_rate_limit(
+        self,
+        contents: str,
+        temperature: float = 0.7,
+        max_output_tokens: int = 1000
+    ) -> str:
+        """
+        Call Gemini API with rate limiting, timeout, and retry logic.
+        
+        Args:
+            contents: The prompt to send to Gemini
+            temperature: Generation temperature
+            max_output_tokens: Maximum tokens in response
+            
+        Returns:
+            The generated text response
+            
+        Raises:
+            Exception if all retries fail
+        """
+        from google.genai import types
+        import concurrent.futures
+        
+        last_error = None
+        
+        for attempt in range(GEMINI_MAX_RETRIES):
+            try:
+                # Rate limiting: ensure minimum interval between calls
+                with self._gemini_lock:
+                    elapsed = time.time() - self._last_gemini_call
+                    if elapsed < GEMINI_MIN_INTERVAL:
+                        wait_time = GEMINI_MIN_INTERVAL - elapsed
+                        logger.debug(f"Rate limiting: waiting {wait_time:.2f}s before Gemini call")
+                        time.sleep(wait_time)
+                    
+                    self._last_gemini_call = time.time()
+                
+                # Make the API call with timeout
+                logger.debug(f"Gemini API call attempt {attempt + 1}/{GEMINI_MAX_RETRIES}")
+                
+                # Use ThreadPoolExecutor for timeout
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                    future = executor.submit(
+                        self.client.models.generate_content,
+                        model=self.model_name,
+                        contents=contents,
+                        config=types.GenerateContentConfig(
+                            temperature=temperature,
+                            max_output_tokens=max_output_tokens,
+                            top_p=0.9
+                        )
+                    )
+                    
+                    try:
+                        response = future.result(timeout=GEMINI_TIMEOUT)
+                        return response.text.strip()
+                    except concurrent.futures.TimeoutError:
+                        logger.warning(f"Gemini API call timed out after {GEMINI_TIMEOUT}s")
+                        raise TimeoutError(f"Gemini API call timed out after {GEMINI_TIMEOUT}s")
+                
+            except Exception as e:
+                last_error = e
+                error_str = str(e).lower()
+                
+                # Check if it's a rate limit error
+                if 'resource_exhausted' in error_str or '429' in error_str or 'quota' in error_str:
+                    # Extract retry delay from error message if available
+                    retry_delay = GEMINI_RETRY_DELAY * (2 ** attempt)  # Exponential backoff
+                    logger.warning(
+                        f"Gemini rate limit hit (attempt {attempt + 1}/{GEMINI_MAX_RETRIES}). "
+                        f"Waiting {retry_delay:.1f}s before retry..."
+                    )
+                    time.sleep(retry_delay)
+                    continue
+                
+                # For other errors, also retry with backoff
+                if attempt < GEMINI_MAX_RETRIES - 1:
+                    retry_delay = GEMINI_RETRY_DELAY * (2 ** attempt)
+                    logger.warning(
+                        f"Gemini API error (attempt {attempt + 1}/{GEMINI_MAX_RETRIES}): {e}. "
+                        f"Retrying in {retry_delay:.1f}s..."
+                    )
+                    time.sleep(retry_delay)
+                else:
+                    logger.error(f"Gemini API failed after {GEMINI_MAX_RETRIES} attempts: {e}")
+                    raise
+        
+        # If we get here, all retries failed
+        raise last_error or RuntimeError("Gemini API call failed after all retries")
     
     def _translate_online(self, text: str) -> str:
         """Dịch bằng Google Translate (scraped)"""
@@ -293,21 +459,22 @@ English translation:"""
         return translated
     
     def clear_cache(self):
-        """Xóa cache translation"""
+        """Clear the refinement cache"""
         self._cache.clear()
-        logger.info("Translation cache cleared")
+        logger.info("Query refinement cache cleared")
     
     def get_stats(self) -> Dict[str, Any]:
-        """Lấy thống kê translation service"""
+        """Get refinement service statistics"""
         return {
             "mode": self.mode,
             "cache_size": len(self._cache),
             "model_info": {
-                "gemini_model": settings.GEMINI_MODEL if self.mode == TranslationMode.GEMINI else None,
-                "device": settings.DEVICE if self.mode == TranslationMode.LOCAL else None
+                "gemini_model": settings.GEMINI_MODEL if self.mode == RefinementMode.GEMINI else None,
+                "device": settings.DEVICE if self.mode == RefinementMode.LOCAL else None
             }
         }
 
 
-# Singleton instance
-translation_service = TranslationService()
+# Singleton instance (with backward-compatible alias)
+query_refinement_service = QueryRefinementService()
+translation_service = query_refinement_service  # Backward compatibility alias

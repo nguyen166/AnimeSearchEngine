@@ -14,7 +14,7 @@ from collections import defaultdict
 from app.core.milvus import milvus_client
 from app.core.elastic import elastic_client
 from app.services.embedding import embedding_service
-from app.services.translation import translation_service
+from app.services.translation import query_refinement_service
 from app.models.schemas import (
     TextSearchRequest,
     VisualSearchRequest,
@@ -74,15 +74,12 @@ class SearchService:
             
             logger.info(f"Starting RRF text search: '{text_query}' (top_k={top_k})")
             
-            # Step 1: Translate to English for better embedding performance
-            translated_query = SearchService._translate_query(text_query)
-            
-            # Step 2: Get results from both sources (fetch more for RRF merging)
+            # Step 1: Get results from both sources (fetch more for RRF merging)
             fetch_limit = top_k * 2
             
-            # Step 2a: Milvus Vector Search
+            # Step 1a: Milvus Vector Search (use original query directly)
             logger.info(f"Performing Milvus vector search (limit={fetch_limit})...")
-            vector_results = SearchService._search_milvus(translated_query, fetch_limit)
+            vector_results = SearchService._search_milvus(text_query, fetch_limit)
             logger.info(f"Milvus returned {len(vector_results)} results")
             
             # Step 2b: Elasticsearch Keyword Search
@@ -141,7 +138,7 @@ class SearchService:
         request: VisualSearchRequest
     ) -> SearchResponse:
         """
-        Visual/Image search using vector similarity
+        Visual/Image search using vector similarity (LEGACY - single image)
         
         Args:
             image_data: Raw image bytes
@@ -200,14 +197,111 @@ class SearchService:
                 results=[],
                 processing_time=processing_time
             )
+
+    @staticmethod
+    def search_visual(
+        collection: str,
+        mode: str,
+        text: Optional[str] = None,
+        base64_images: List[str] = []
+    ) -> SearchResponse:
+        """
+        Visual/Multimodal search - supports multiple images + optional text
+        
+        Args:
+            collection: Collection to search
+            mode: Clustering mode (moment, video, timeline)
+            text: Optional text query for multimodal search
+            base64_images: List of base64 encoded images
+            
+        Returns:
+            SearchResponse matching API_ENDPOINTS.md specification
+        """
+        start_time = time.time()
+        
+        try:
+            top_k = 256  # Default for visual search
+            
+            logger.info(f"Starting visual search: {len(base64_images)} images, text='{text}' (top_k={top_k})")
+            
+            if not base64_images and not text:
+                return SearchResponse(
+                    status="error",
+                    state_id=None,
+                    mode=mode,
+                    results=[],
+                    processing_time=time.time() - start_time
+                )
+            
+            # Generate embeddings
+            embeddings = []
+            
+            # Text embedding
+            if text:
+                logger.info("Encoding text query...")
+                text_embedding = embedding_service.encode_text(text)
+                embeddings.append(text_embedding)
+            
+            # Image embeddings
+            for idx, b64_img in enumerate(base64_images):
+                logger.info(f"Encoding image {idx + 1}/{len(base64_images)}...")
+                img_embedding = embedding_service.encode_image_base64(b64_img)
+                embeddings.append(img_embedding)
+            
+            # Average embeddings if multiple
+            if len(embeddings) > 1:
+                import numpy as np
+                query_embedding = np.mean(embeddings, axis=0).tolist()
+            else:
+                query_embedding = embeddings[0]
+            
+            # Search Milvus
+            logger.info(f"Searching Milvus for top {top_k} results...")
+            vector_results = milvus_client.search(
+                query_vectors=[query_embedding],
+                top_k=top_k,
+                filters=None
+            )[0]
+            
+            # Enrich with metadata and format
+            enriched_results = SearchService._enrich_vector_results(vector_results)
+            
+            # Convert to clusters
+            clusters = SearchService._format_results_as_clusters(
+                [(r['id'], r) for r in enriched_results],
+                mode
+            )
+            
+            state_id = str(uuid.uuid4())
+            processing_time = time.time() - start_time
+            
+            return SearchResponse(
+                status="success",
+                state_id=state_id,
+                mode=mode,
+                results=clusters,
+                processing_time=processing_time
+            )
+            
+        except Exception as e:
+            logger.error(f"Visual search failed: {e}", exc_info=True)
+            processing_time = time.time() - start_time
+            return SearchResponse(
+                status="error",
+                state_id=None,
+                mode=mode,
+                results=[],
+                processing_time=processing_time
+            )
     
     @staticmethod
     def search_temporal(request: TemporalSearchRequest) -> SearchResponse:
         """
         Temporal search for before/now/after scene sequences
+        Supports both text and image queries for each temporal component.
         
         Args:
-            request: TemporalSearchRequest with before, now, after queries
+            request: TemporalSearchRequest with before, now, after queries (text and/or image)
             
         Returns:
             SearchResponse with results grouped as scenes with 3 frames each
@@ -218,29 +312,66 @@ class SearchService:
             top_k = request.top_k
             mode = request.mode if hasattr(request, 'mode') else "moment"
             
-            # Extract text queries
+            # Extract text and image queries
             before_text = request.before.text if request.before else None
+            before_image = request.before.image if request.before and hasattr(request.before, 'image') else None
             now_text = request.now.text if request.now else None
+            now_image = request.now.image if request.now and hasattr(request.now, 'image') else None
             after_text = request.after.text if request.after else None
+            after_image = request.after.image if request.after and hasattr(request.after, 'image') else None
             
-            logger.info(f"Temporal search: before='{before_text}', now='{now_text}', after='{after_text}'")
+            logger.info(f"Temporal search: before='{before_text}' (img={bool(before_image)}), "
+                       f"now='{now_text}' (img={bool(now_image)}), after='{after_text}' (img={bool(after_image)})")
             
             # Search for each temporal component
             results_map = {}
             
-            if before_text:
-                before_req = TextSearchRequest(text=before_text, top_k=top_k)
-                before_resp = SearchService.search_by_text(before_req)
+            # Before component
+            if before_text or before_image:
+                if before_image:
+                    # Visual search
+                    before_resp = SearchService.search_visual(
+                        collection="frames",
+                        mode=mode,
+                        text=before_text,
+                        base64_images=[before_image] if before_image else []
+                    )
+                else:
+                    # Text search
+                    before_req = TextSearchRequest(text=before_text, top_k=top_k)
+                    before_resp = SearchService.search_by_text(before_req)
                 results_map['before'] = before_resp.results
             
-            if now_text:
-                now_req = TextSearchRequest(text=now_text, top_k=top_k)
-                now_resp = SearchService.search_by_text(now_req)
+            # Now component
+            if now_text or now_image:
+                if now_image:
+                    # Visual search
+                    now_resp = SearchService.search_visual(
+                        collection="frames",
+                        mode=mode,
+                        text=now_text,
+                        base64_images=[now_image] if now_image else []
+                    )
+                else:
+                    # Text search
+                    now_req = TextSearchRequest(text=now_text, top_k=top_k)
+                    now_resp = SearchService.search_by_text(now_req)
                 results_map['now'] = now_resp.results
             
-            if after_text:
-                after_req = TextSearchRequest(text=after_text, top_k=top_k)
-                after_resp = SearchService.search_by_text(after_req)
+            # After component
+            if after_text or after_image:
+                if after_image:
+                    # Visual search
+                    after_resp = SearchService.search_visual(
+                        collection="frames",
+                        mode=mode,
+                        text=after_text,
+                        base64_images=[after_image] if after_image else []
+                    )
+                else:
+                    # Text search
+                    after_req = TextSearchRequest(text=after_text, top_k=top_k)
+                    after_resp = SearchService.search_by_text(after_req)
                 results_map['after'] = after_resp.results
             
             # Combine results into temporal clusters
@@ -299,13 +430,10 @@ class SearchService:
             
             # If text query provided, use RRF hybrid search with filters
             if text_query:
-                # Similar to text search but with filters applied
-                translated_query = SearchService._translate_query(text_query)
-                
                 fetch_limit = top_k * 2
                 
                 # Vector search (no direct filter support in Milvus, filter post-retrieval)
-                vector_results = SearchService._search_milvus(translated_query, fetch_limit)
+                vector_results = SearchService._search_milvus(text_query, fetch_limit)
                 
                 # Elasticsearch search with filters
                 keyword_results = SearchService._search_elasticsearch(
@@ -528,17 +656,28 @@ class SearchService:
     # ========================================================================
     
     @staticmethod
-    def _translate_query(text: str) -> str:
-        """Translate text to English for better embedding performance"""
+    def _refine_query(text: str) -> str:
+        """
+        Refine query for better CLIP embedding performance.
+        
+        Uses QueryRefinementService to transform raw queries into detailed
+        visual descriptions optimized for semantic search.
+        
+        Args:
+            text: Raw user query (can be Vietnamese or English)
+            
+        Returns:
+            Refined English query with visual descriptions (first variant)
+        """
         try:
-            if SearchService._is_vietnamese(text):
-                logger.info(f"Translating Vietnamese query: {text}")
-                translated = translation_service.translate(text, target_lang='en')
-                logger.info(f"Translated to: {translated}")
-                return translated
-            return text
+            logger.info(f"Refining query: '{text}'")
+            # refine() returns List[str], take first variant for embedding
+            variants = query_refinement_service.refine(text)
+            refined = variants[0] if variants else text
+            logger.info(f"Refined to: '{refined}'")
+            return refined
         except Exception as e:
-            logger.warning(f"Translation failed, using original: {e}")
+            logger.warning(f"Query refinement failed, using original: {e}")
             return text
     
     @staticmethod
@@ -636,10 +775,17 @@ class SearchService:
                 if group_key not in group_urls or not group_urls[group_key]:
                     group_urls[group_key] = video_url
                 
+                # Get frame_path from document or generate from timestamp
+                frame_path = doc_data.get('frame_path', '')
+                if not frame_path:
+                    # Fallback: generate path from timestamp
+                    timestamp = doc_data.get('timestamp', 0.0)
+                    frame_path = f"frames/{anime_id}/ep{episode:03d}/frame_{timestamp:.2f}.jpg"
+                
                 # Create ImageItem
                 image_item = ImageItem(
                     id=doc_id,
-                    path=f"/{anime_id}/ep{episode:03d}/",
+                    path=f"/static/{frame_path}",
                     score=doc_data.get('rrf_score', doc_data.get('score', 0)),
                     time_in_seconds=doc_data.get('timestamp', 0.0),
                     name=f"Frame at {doc_data.get('timestamp', 0):.1f}s",
@@ -651,14 +797,21 @@ class SearchService:
                 groups[group_key].append(image_item)
             
             # Convert to ClusterResult list
-            clusters = [
-                ClusterResult(
-                    cluster_name=name,
-                    url=group_urls.get(name) or None,
-                    image_list=items
+            # Sort items within each cluster by score descending
+            clusters = []
+            for name, items in groups.items():
+                # Sort images by score descending
+                sorted_items = sorted(items, key=lambda x: x.score or 0, reverse=True)
+                clusters.append(
+                    ClusterResult(
+                        cluster_name=name,
+                        url=group_urls.get(name) or None,
+                        image_list=sorted_items
+                    )
                 )
-                for name, items in groups.items()
-            ]
+            
+            # Sort clusters by their best score (first item's score) descending
+            clusters.sort(key=lambda c: c.image_list[0].score if c.image_list else 0, reverse=True)
             
         else:
             # Default: single cluster with all results
@@ -668,15 +821,28 @@ class SearchService:
                 # Capture first video_url for the cluster (prefer source_url)
                 if first_url is None:
                     first_url = doc_data.get('source_url', '') or doc_data.get('video_url', '')
+                
+                # Get frame_path from document or generate from timestamp
+                frame_path = doc_data.get('frame_path', '')
+                if not frame_path:
+                    # Fallback: generate path from timestamp
+                    anime_id = doc_data.get('anime_id', 'unknown')
+                    episode = doc_data.get('episode', 0)
+                    timestamp = doc_data.get('timestamp', 0.0)
+                    frame_path = f"frames/{anime_id}/ep{episode:03d}/frame_{timestamp:.2f}.jpg"
+                
                 items.append(ImageItem(
                     id=doc_id,
-                    path=f"/{doc_data.get('anime_id', 'unknown')}/",
+                    path=f"/static/{frame_path}",
                     score=doc_data.get('rrf_score', doc_data.get('score', 0)),
                     time_in_seconds=doc_data.get('timestamp', 0.0),
                     name=f"Frame at {doc_data.get('timestamp', 0):.1f}s",
                     videoId=doc_data.get('anime_id', ''),
                     videoName=doc_data.get('anime_title', '')
                 ))
+            
+            # Sort items by score descending
+            items.sort(key=lambda x: x.score or 0, reverse=True)
             
             clusters = [
                 ClusterResult(
@@ -863,9 +1029,9 @@ class SearchService:
             
             if auto_translate:
                 if SearchService._is_vietnamese(current_action):
-                    current_action = translation_service.translate(current_action)
+                    current_action = query_refinement_service.translate(current_action)
                 if SearchService._is_vietnamese(previous_action):
-                    previous_action = translation_service.translate(previous_action)
+                    previous_action = query_refinement_service.translate(previous_action)
             
             # Search for both actions
             current_results = SearchService._search_milvus(current_action, request.top_k * 5)

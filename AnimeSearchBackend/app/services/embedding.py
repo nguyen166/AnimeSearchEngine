@@ -193,6 +193,45 @@ class EmbeddingService:
             logger.error(f"Failed to encode image: {e}")
             raise
     
+    def encode_image_base64(self, b64_image: str) -> List[float]:
+        """
+        Tạo embedding từ base64 encoded image.
+        
+        Args:
+            b64_image: Base64 encoded image string
+            
+        Returns:
+            Embedding vector (List[float])
+        """
+        try:
+            # Remove data URL prefix if present
+            if ',' in b64_image:
+                b64_image = b64_image.split(',')[1]
+            
+            # Call embedding service
+            embeddings = self._call_embedding_service(b64_images=[b64_image])
+            
+            if not embeddings:
+                raise EmbeddingServiceError("No embeddings returned from service")
+            
+            return embeddings[0]
+            
+        except Exception as e:
+            logger.error(f"Failed to encode base64 image: {e}")
+            raise
+    
+    def encode_image_bytes(self, image_bytes: bytes) -> List[float]:
+        """
+        Tạo embedding từ raw image bytes.
+        
+        Args:
+            image_bytes: Raw image bytes
+            
+        Returns:
+            Embedding vector (List[float])
+        """
+        return self.encode_image(image_bytes)
+
     def encode_text(self, text: str) -> List[float]:
         """
         Tạo embedding từ text thông qua embedding-service.

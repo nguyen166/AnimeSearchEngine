@@ -55,6 +55,7 @@ class VisualSearchRequest(BaseModel):
 class TemporalQueryItem(BaseModel):
     """Temporal query component for before/now/after scenes"""
     text: Optional[str] = Field(None, description="Text description of the scene")
+    image: Optional[str] = Field(None, description="Base64 encoded image")
 
 
 class TemporalSearchRequest(BaseModel):
@@ -210,12 +211,11 @@ class SearchResponse(BaseModel):
 
 
 class RephraseResponse(BaseModel):
-    """Response schema for rephrase suggestions"""
+    """Response schema for query refinement/rephrase suggestions"""
     status: str = Field("success", description="Response status")
     original: str = Field(..., description="Original query text")
-    rephrased: str = Field(..., description="Rephrased/translated query")
+    variants: List[str] = Field(default_factory=list, description="List of refined query variants")
     message_ref: Optional[str] = Field(None, description="Message reference from request")
-    variants: List[str] = Field(default_factory=list, description="Additional rephrased variants")
 
 
 class ErrorResponse(BaseModel):

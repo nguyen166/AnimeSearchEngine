@@ -29,7 +29,7 @@ from app.models.schemas import (
     TemporalPair
 )
 from app.services.search import search_service
-from app.services.translation import translation_service
+from app.services.translation import query_refinement_service
 from app.core.milvus import milvus_client
 from app.core.elastic import elastic_client
 
@@ -205,15 +205,21 @@ async def filter_search(request: FilterSearchRequest):
 @router.post("/rephrase", response_model=RephraseResponse)
 async def rephrase_query(request: RephraseRequest):
     """
-    Rephrase/translate query for better search results
+    Refine/rephrase query for better CLIP-based search results.
     
-    - **text**: Original query text
-    - **target_lang**: Target language (default: "en")
+    - **text**: Original query text (can be Vietnamese or English)
+    - **target_lang**: Target language (default: "en") - kept for backward compatibility
     
-    Uses translation service to convert queries to English for optimal embedding.
+    Uses QueryRefinementService to transform queries into detailed visual descriptions
+    optimized for CLIP-based semantic search.
+    
+    **Example:**
+    - Input: "Luffy đánh nhau"
+    - Output: "Monkey D. Luffy in intense combat scene, throwing powerful punch, 
+               straw hat flying, dynamic action pose, anime fight sequence"
     """
     try:
-        logger.info(f"Rephrase request: '{request.text}' -> {request.target_lang}")
+        logger.info(f"Rephrase/refine request: '{request.text}'")
         
         if not request.text or not request.text.strip():
             raise HTTPException(
@@ -221,23 +227,21 @@ async def rephrase_query(request: RephraseRequest):
                 detail="Text is required"
             )
         
-        rephrased = translation_service.translate(
-            request.text, 
-            target_lang=request.target_lang
-        )
+        # refine() now returns List[str] with up to 3 variants
+        variants = query_refinement_service.refine(request.text)
         
         return RephraseResponse(
             status="success",
             original=request.text,
-            rephrased=rephrased
+            variants=variants if variants else []
         )
         
     except Exception as e:
-        logger.error(f"Rephrase failed: {e}")
+        logger.error(f"Rephrase/refine failed: {e}")
         return RephraseResponse(
             status="error",
             original=request.text,
-            rephrased=request.text  # Return original on failure
+            variants=[request.text]  # Return original on failure
         )
 
 

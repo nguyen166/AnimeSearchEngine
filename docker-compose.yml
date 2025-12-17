@@ -122,6 +122,8 @@ services:
     container_name: anime-api-server
     ports:
       - "8000:8000"
+    volumes:
+      - ./data-pipeline/data:/data  # Map host's data-pipeline/data dir to container's /data
     environment:
       - MILVUS_HOST=milvus-standalone
       - MILVUS_PORT=19530
@@ -134,7 +136,8 @@ services:
       - VECTOR_DIM=512
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - TRANSLATION_MODE=GEMINI
-      - GEMINI_MODEL=gemini-2.0-flash
+      - GEMINI_MODEL=gemini-2.5-flash
+      - FRAME_DIR=/data/frames  # Path inside container to mounted frames
     depends_on:
       milvus:
         condition: service_healthy
