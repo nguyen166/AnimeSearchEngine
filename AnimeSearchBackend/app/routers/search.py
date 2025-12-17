@@ -1,21 +1,34 @@
 """
 Search Router
-API endpoints cho tìm kiếm anime
+API endpoints for anime search (API_ENDPOINTS.md compliant)
 """
 
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Query
 from fastapi.responses import JSONResponse
 from typing import Optional
 import logging
+import uuid
 
 from app.models.schemas import (
-    SearchRequest,
-    SearchResponse,
-    ErrorResponse,
+    # New API schemas
+    TextSearchRequest,
+    VisualSearchRequest,
     TemporalSearchRequest,
-    TemporalSearchResponse
+    FilterSearchRequest,
+    SearchResponse,
+    ClusterResult,
+    ImageItem,
+    RephraseRequest,
+    RephraseResponse,
+    ErrorResponse,
+    # Legacy schemas for backward compatibility
+    SearchRequest,
+    FrameResult,
+    LegacyTemporalSearchRequest,
+    LegacyTemporalSearchResponse,
+    TemporalPair
 )
-from app.services.search import SearchService
+from app.services.search import search_service
 from app.services.translation import translation_service
 from app.core.milvus import milvus_client
 from app.core.elastic import elastic_client
@@ -24,16 +37,220 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-@router.post("/search", response_model=SearchResponse)
-async def search_anime(request: SearchRequest):
+# ========================================================================
+# NEW API ENDPOINTS (API_ENDPOINTS.md compliant)
+# ========================================================================
+
+@router.post("/text", response_model=SearchResponse)
+async def text_search(request: TextSearchRequest):
     """
-    Tìm kiếm anime bằng hình ảnh, text, hoặc cả hai
+    Text-based search using Reciprocal Rank Fusion (RRF)
     
-    - **image_base64**: Base64 encoded image (optional)
-    - **image_url**: URL của hình ảnh (optional)
-    - **text_query**: Text query (optional)
-    - **top_k**: Số lượng kết quả (1-100)
-    - **filters**: Filters cho metadata như genre, year, etc.
+    Combines semantic (vector) and keyword search for optimal results.
+    
+    - **text**: Search query text (required)
+    - **mode**: Clustering mode - "moment", "timeline", "video" (default: "moment")
+    - **collection**: Collection/index to search (default: "frames")
+    - **top_k**: Number of results (1-1000, default: 256)
+    - **state_id**: Optional state ID for follow-up searches
+    
+    **RRF Algorithm:**
+    - Step 1: Get top_k*2 results from Milvus (vector search)
+    - Step 2: Get top_k*2 results from Elasticsearch (keyword search)
+    - Step 3: Apply RRF: Score = Σ 1/(60 + rank) for each source
+    - Step 4: Sort by RRF score and return top_k results
+    """
+    try:
+        logger.info(f"Text search: '{request.text}' (mode={request.mode}, top_k={request.top_k})")
+        
+        if not request.text or not request.text.strip():
+            raise HTTPException(
+                status_code=400,
+                detail="Text query is required"
+            )
+        
+        response = search_service.search_by_text(request)
+        return response
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Text search failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/visual", response_model=SearchResponse)
+async def visual_search(
+    file: UploadFile = File(...),
+    mode: str = Form("moment"),
+    collection: str = Form("frames"),
+    state_id: Optional[str] = Form(None)
+):
+    """
+    Visual/Image-based search using uploaded image
+    
+    - **file**: Image file (JPG, PNG, etc.)
+    - **mode**: Clustering mode - "moment", "timeline", "video" (default: "moment")
+    - **collection**: Collection to search (default: "frames")
+    - **state_id**: Optional state ID for follow-up searches
+    """
+    try:
+        logger.info(f"Visual search: file={file.filename} (mode={mode})")
+        
+        # Validate file type
+        if not file.content_type or not file.content_type.startswith('image/'):
+            raise HTTPException(
+                status_code=400,
+                detail="File must be an image"
+            )
+        
+        # Read image bytes
+        image_data = await file.read()
+        
+        # Create request object
+        request = VisualSearchRequest(
+            mode=mode,
+            collection=collection,
+            state_id=state_id
+        )
+        
+        response = search_service.search_by_image(image_data, request)
+        return response
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Visual search failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/temporal", response_model=SearchResponse)
+async def temporal_search(request: TemporalSearchRequest):
+    """
+    Temporal search for before/now/after scene sequences
+    
+    Find sequences of scenes that match temporal queries.
+    
+    - **before**: Query for scene before the main event (optional)
+    - **now**: Query for the main event (optional)
+    - **after**: Query for scene after the main event (optional)
+    - **mode**: Clustering mode (default: "moment")
+    - **top_k**: Number of sequences (default: 10)
+    
+    **Example:**
+    ```json
+    {
+        "before": {"text": "character draws sword"},
+        "now": {"text": "slash attack"},
+        "after": {"text": "enemy falls"},
+        "top_k": 10
+    }
+    ```
+    """
+    try:
+        logger.info(f"Temporal search request")
+        
+        # At least one temporal query required
+        if not request.before and not request.now and not request.after:
+            raise HTTPException(
+                status_code=400,
+                detail="At least one of before, now, or after query is required"
+            )
+        
+        response = search_service.search_temporal(request)
+        return response
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Temporal search failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/filter", response_model=SearchResponse)
+async def filter_search(request: FilterSearchRequest):
+    """
+    Filter-based search with optional text query
+    
+    - **text**: Optional text query
+    - **filters**: Filter conditions (ocr, genre, etc.)
+    - **mode**: Clustering mode (default: "moment")
+    - **top_k**: Number of results (default: 256)
+    
+    **Example:**
+    ```json
+    {
+        "text": "fight scene",
+        "filters": {
+            "ocr": "Attack",
+            "genre": "Action"
+        },
+        "top_k": 100
+    }
+    ```
+    """
+    try:
+        logger.info(f"Filter search: text='{request.text}', filters={request.filters}")
+        
+        response = search_service.search_with_filters(request)
+        return response
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Filter search failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/rephrase", response_model=RephraseResponse)
+async def rephrase_query(request: RephraseRequest):
+    """
+    Rephrase/translate query for better search results
+    
+    - **text**: Original query text
+    - **target_lang**: Target language (default: "en")
+    
+    Uses translation service to convert queries to English for optimal embedding.
+    """
+    try:
+        logger.info(f"Rephrase request: '{request.text}' -> {request.target_lang}")
+        
+        if not request.text or not request.text.strip():
+            raise HTTPException(
+                status_code=400,
+                detail="Text is required"
+            )
+        
+        rephrased = translation_service.translate(
+            request.text, 
+            target_lang=request.target_lang
+        )
+        
+        return RephraseResponse(
+            status="success",
+            original=request.text,
+            rephrased=rephrased
+        )
+        
+    except Exception as e:
+        logger.error(f"Rephrase failed: {e}")
+        return RephraseResponse(
+            status="error",
+            original=request.text,
+            rephrased=request.text  # Return original on failure
+        )
+
+
+# ========================================================================
+# LEGACY ENDPOINTS (Backward Compatibility)
+# ========================================================================
+
+@router.post("/search")
+async def legacy_search_anime(request: SearchRequest):
+    """
+    [LEGACY] Search anime by image, text, or both
+    
+    Maintained for backward compatibility. Use /text, /visual, or /filter instead.
     """
     try:
         # Validate input
@@ -50,33 +267,33 @@ async def search_anime(request: SearchRequest):
         # Get image input
         image_input = request.image_base64 or request.image_url
         
-        # Perform search
+        # Perform search using legacy methods
         if has_image and has_text:
-            # Hybrid search
+            # Hybrid search - use text search with RRF
             logger.info("Performing hybrid search...")
-            response = SearchService.hybrid_search(
-                image_input=image_input,
-                text_query=request.text_query,
-                top_k=request.top_k,
-                filters=request.filters
+            text_req = TextSearchRequest(
+                text=request.text_query,
+                top_k=request.top_k
             )
+            response = search_service.search_by_text(text_req)
         elif has_image:
             # Image search only
             logger.info("Performing image search...")
-            response = SearchService.search_by_image(
+            response = search_service.legacy_search_by_image(
                 image_input=image_input,
                 top_k=request.top_k,
                 filters=request.filters
             )
+            # Convert to SearchResponse format
+            return response
         else:
-            # Text search only
+            # Text search only with RRF
             logger.info("Performing text search...")
-            response = SearchService.search_by_text(
-                text_query=request.text_query,
-                top_k=request.top_k,
-                filters=request.filters,
-                semantic_weight=request.semantic_weight
+            text_req = TextSearchRequest(
+                text=request.text_query,
+                top_k=request.top_k
             )
+            response = search_service.search_by_text(text_req)
         
         return response
         
@@ -87,18 +304,16 @@ async def search_anime(request: SearchRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/search/upload", response_model=SearchResponse)
-async def search_by_upload(
+@router.post("/search/upload")
+async def legacy_search_by_upload(
     file: UploadFile = File(...),
     top_k: int = Form(10),
     text_query: Optional[str] = Form(None)
 ):
     """
-    Tìm kiếm anime bằng cách upload hình ảnh
+    [LEGACY] Search anime by uploading image
     
-    - **file**: Image file (JPG, PNG, etc.)
-    - **top_k**: Số lượng kết quả
-    - **text_query**: Optional text query
+    Maintained for backward compatibility. Use /visual instead.
     """
     try:
         # Read image file
@@ -111,18 +326,9 @@ async def search_by_upload(
                 detail="File must be an image"
             )
         
-        # Perform search
-        if text_query:
-            response = SearchService.hybrid_search(
-                image_input=image_bytes,
-                text_query=text_query,
-                top_k=top_k
-            )
-        else:
-            response = SearchService.search_by_image(
-                image_input=image_bytes,
-                top_k=top_k
-            )
+        # Perform search using new visual search
+        request = VisualSearchRequest(mode="moment")
+        response = search_service.search_by_image(image_bytes, request)
         
         return response
         
@@ -201,41 +407,15 @@ async def list_anime(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/search/temporal", response_model=TemporalSearchResponse)
-async def temporal_search(request: TemporalSearchRequest):
+@router.post("/search/temporal")
+async def legacy_temporal_search(request: LegacyTemporalSearchRequest):
     """
-    Tìm kiếm chuỗi hành động theo thời gian (Temporal Search)
+    [LEGACY] Temporal search for action sequences
     
-    Tính năng này cho phép tìm kiếm các chuỗi hành động nhân quả trong Anime,
-    ví dụ: "Nhân vật rút kiếm" → "Cảnh nổ lớn" trong khoảng thời gian 10 giây.
-    
-    - **current_action**: Mô tả hành động chính/kết quả (bắt buộc)
-    - **previous_action**: Mô tả hành động xảy ra trước đó/nguyên nhân (bắt buộc)
-    - **time_window**: Khoảng thời gian tối đa (giây) giữa hai hành động (1-60, mặc định 10)
-    - **top_k**: Số lượng kết quả trả về (1-100, mặc định 10)
-    - **filters**: Filters cho metadata (anime_id, genre, year, etc.)
-    
-    **Example Request:**
-    ```json
-    {
-        "current_action": "explosion",
-        "previous_action": "character draws sword",
-        "time_window": 10,
-        "top_k": 10
-    }
-    ```
-    
-    **Logic:**
-    1. Tìm kiếm song song cả previous và current actions
-    2. Ghép cặp các frame thỏa mãn:
-       - Cùng anime_id và episode
-       - Previous timestamp < current timestamp
-       - Khoảng cách thời gian <= time_window
-    3. Tính điểm tổng hợp và ranking
-    4. Trả về top_k cặp có điểm cao nhất
+    Maintained for backward compatibility. Use /temporal instead.
     """
     try:
-        logger.info(f"Temporal search request: '{request.previous_action}' -> '{request.current_action}'")
+        logger.info(f"Legacy temporal search: '{request.previous_action}' -> '{request.current_action}'")
         
         # Validate input
         if not request.current_action or not request.previous_action:
@@ -244,8 +424,8 @@ async def temporal_search(request: TemporalSearchRequest):
                 detail="Both current_action and previous_action are required"
             )
         
-        # Perform temporal search
-        response = await SearchService.search_temporal(request)
+        # Use legacy temporal search
+        response = await search_service.legacy_search_temporal(request)
         
         if not response.success:
             logger.warning("Temporal search returned no results or encountered errors")
@@ -263,18 +443,11 @@ async def temporal_search(request: TemporalSearchRequest):
 
 
 @router.post("/translate")
-async def translate_text(text: str):
+async def translate_text(text: str = Query(...)):
     """
-    Dịch văn bản từ tiếng Việt sang tiếng Anh
+    [LEGACY] Translate Vietnamese text to English
     
-    Endpoint này sử dụng Google Gemini (hoặc fallback provider) để dịch thuật.
-    
-    - **text**: Văn bản tiếng Việt cần dịch
-    
-    **Example:**
-    ```
-    POST /translate?text=Nhân vật rút kiếm
-    ```
+    Use /rephrase instead for new implementations.
     """
     try:
         if not text or not text.strip():

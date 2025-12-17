@@ -88,7 +88,7 @@ class MilvusClient:
         
         # Tạo index cho vector field
         index_params = {
-            "metric_type": "L2",
+            "metric_type": "COSINE",
             "index_type": "IVF_FLAT",
             "params": {"nlist": 1024}
         }
@@ -153,7 +153,7 @@ class MilvusClient:
         
         try:
             search_params = {
-                "metric_type": "L2",
+                "metric_type": "COSINE",
                 "params": {"nprobe": 10}
             }
             

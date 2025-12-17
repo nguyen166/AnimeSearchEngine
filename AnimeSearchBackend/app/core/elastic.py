@@ -205,29 +205,14 @@ class ElasticsearchClient:
             must_clauses = []
             
             if query:
-                # Tìm kiếm trong các trường text và nested transcript
-                should_clauses = [
-                    {
-                        "multi_match": {
-                            "query": query,
-                            "fields": ["title^3", "title_english^2", "title_vietnamese^2", "description"]
-                        }
-                    },
-                    {
-                        "nested": {
-                            "path": "transcript",
-                            "query": {
-                                "match": {
-                                    "transcript.text": query
-                                }
-                            }
-                        }
-                    }
-                ]
+                # Search in text fields (compatible with flat frame schema)
+                # Fields: title, description, anime_id
                 must_clauses.append({
-                    "bool": {
-                        "should": should_clauses,
-                        "minimum_should_match": 1
+                    "multi_match": {
+                        "query": query,
+                        "fields": ["title^3", "description^2", "anime_id"],
+                        "type": "best_fields",
+                        "fuzziness": "AUTO"
                     }
                 })
             
@@ -252,7 +237,13 @@ class ElasticsearchClient:
                 body=body
             )
             
-            return [hit["_source"] for hit in result["hits"]["hits"]]
+            # Return full document including _score for ranking
+            docs = []
+            for hit in result["hits"]["hits"]:
+                doc = hit["_source"]
+                doc["_score"] = hit.get("_score", 1.0)
+                docs.append(doc)
+            return docs
         except Exception as e:
             logger.error(f"Search failed: {e}")
             raise

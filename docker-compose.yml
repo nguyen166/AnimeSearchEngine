@@ -127,7 +127,14 @@ services:
       - MILVUS_PORT=19530
       - ELASTIC_HOST=elasticsearch
       - ELASTIC_PORT=9200
+      - ELASTIC_INDEX=anime_frames
       - AI_SERVICE_URL=http://anime-embeddings-service:8000/v1/embeddings
+      - AI_SERVICE_TIMEOUT=120
+      - AI_MODEL=clip
+      - VECTOR_DIM=512
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - TRANSLATION_MODE=GEMINI
+      - GEMINI_MODEL=gemini-2.0-flash
     depends_on:
       milvus:
         condition: service_healthy

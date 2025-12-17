@@ -29,18 +29,18 @@ class Settings(BaseSettings):
     # Elasticsearch Configuration
     ELASTIC_HOST: str = os.getenv("ELASTIC_HOST", "localhost")
     ELASTIC_PORT: int = int(os.getenv("ELASTIC_PORT", "9200"))
-    ELASTIC_INDEX: str = os.getenv("ELASTIC_INDEX", "anime_metadata")
+    ELASTIC_INDEX: str = os.getenv("ELASTIC_INDEX", "anime_frames")
     ELASTIC_USER: Optional[str] = os.getenv("ELASTIC_USER")
     ELASTIC_PASSWORD: Optional[str] = os.getenv("ELASTIC_PASSWORD")
     
     # AI Model Configuration (Legacy - kept for backward compatibility)
-    MODEL_NAME: str = os.getenv("MODEL_NAME", "siglip2")
+    MODEL_NAME: str = os.getenv("MODEL_NAME", "clip")
     MODEL_PATH: Optional[str] = os.getenv("MODEL_PATH")
     DEVICE: str = os.getenv("DEVICE", "cpu")  # cpu hoặc cuda
     
     # External Embedding Service Configuration
     AI_SERVICE_URL: str = os.getenv("AI_SERVICE_URL", "http://embedding-service:8000/v1/embeddings")
-    AI_MODEL: str = os.getenv("AI_MODEL", "siglip2")
+    AI_MODEL: str = os.getenv("AI_MODEL", "clip")
     AI_SERVICE_TIMEOUT: int = int(os.getenv("AI_SERVICE_TIMEOUT", "30"))  # seconds
     
     # Search Configuration

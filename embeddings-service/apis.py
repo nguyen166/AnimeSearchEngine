@@ -6,7 +6,7 @@ import asyncio
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from schemas import ModelsResponse, Model, EmbeddingResponse
-from services.siglip2 import siglip2_service
+from services.clip import clip_service
 from configs.config import CONFIG
 from schemas import HealthStatus, EmbeddingRequest
 from dotenv import load_dotenv
@@ -56,8 +56,8 @@ async def embeddings(request: EmbeddingRequest) -> EmbeddingResponse:
         task_id = str(uuid.uuid4())
         
         # Select the appropriate service based on model
-        if request.model == "siglip2":
-            service = siglip2_service
+        if request.model == "clip":
+            service = clip_service
         else:
             raise HTTPException(status_code=400, detail=f"Unsupported model: {request.model}")
         

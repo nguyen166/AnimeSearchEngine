@@ -80,7 +80,8 @@ class TranslationService:
     def _setup_gemini(self):
         """Khởi tạo Google Gemini API"""
         try:
-            import google.generativeai as genai
+            from google import genai
+            from google.genai import types
             
             api_key = settings.GEMINI_API_KEY
             if not api_key:
@@ -89,19 +90,20 @@ class TranslationService:
                     "Get your free API key at https://makersuite.google.com/app/apikey"
                 )
             
-            # Cấu hình Gemini
-            genai.configure(api_key=api_key)
+            # Khởi tạo client
+            self.client = genai.Client(api_key=api_key)
             
-            # Khởi tạo model (gemini-1.5-flash miễn phí và nhanh)
+            # Model name
             model_name = settings.GEMINI_MODEL
-            self.model = genai.GenerativeModel(model_name)
+            self.model_name = model_name
             
-            logger.info(f"Gemini model initialized: {model_name}")
+            logger.info(f"Gemini client initialized: {model_name}")
             
             # Test connection
-            test_response = self.model.generate_content(
-                "Translate to English: Xin chào",
-                generation_config=genai.types.GenerationConfig(
+            test_response = self.client.models.generate_content(
+                model=model_name,
+                contents="Translate to English: Xin chào",
+                config=types.GenerateContentConfig(
                     temperature=0.1,
                     max_output_tokens=100
                 )
@@ -110,8 +112,8 @@ class TranslationService:
             
         except ImportError:
             raise ImportError(
-                "google-generativeai is required for GEMINI mode. "
-                "Install it: pip install google-generativeai"
+                "google-genai is required for GEMINI mode. "
+                "Install it: pip install google-genai"
             )
         except Exception as e:
             logger.error(f"Failed to initialize Gemini: {e}")
@@ -154,13 +156,14 @@ class TranslationService:
                 "Install it: pip install transformers"
             )
     
-    def translate(self, text: str, use_cache: bool = True) -> str:
+    def translate(self, text: str, use_cache: bool = True, target_lang: str = "en") -> str:
         """
-        Dịch văn bản từ tiếng Việt sang tiếng Anh
+        Dịch văn bản từ tiếng Việt sang tiếng Anh (hoặc ngôn ngữ đích khác)
         
         Args:
             text: Văn bản cần dịch
             use_cache: Sử dụng cache để tránh dịch lại
+            target_lang: Target language (default: "en")
             
         Returns:
             Văn bản đã dịch
@@ -213,8 +216,8 @@ class TranslationService:
     
     def _translate_gemini(self, text: str) -> str:
         """Dịch bằng Google Gemini API"""
-        if not self.model:
-            raise RuntimeError("Gemini model not initialized")
+        if not self.client:
+            raise RuntimeError("Gemini client not initialized")
         
         # Prompt engineering để đảm bảo output clean
         prompt = f"""Translate the following Vietnamese text to English. 
@@ -226,11 +229,12 @@ Vietnamese text: {text}
 English translation:"""
         
         try:
-            import google.generativeai as genai
+            from google.genai import types
             
-            response = self.model.generate_content(
-                prompt,
-                generation_config=genai.types.GenerationConfig(
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=prompt,
+                config=types.GenerateContentConfig(
                     temperature=0.1,  # Low temperature for consistent translation
                     max_output_tokens=500,
                     top_p=0.8

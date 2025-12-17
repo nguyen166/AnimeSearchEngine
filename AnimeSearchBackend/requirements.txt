@@ -8,4 +8,4 @@ pydantic-settings
 python-multipart
 Pillow  # Image processing for embedding service
 deep-translator  # Translation service
-google-generativeai  # Gemini API for translation
+google-genai  # New Gemini API for translation (replaces google-generativeai)
