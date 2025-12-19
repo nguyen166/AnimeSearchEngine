@@ -1,0 +1,605 @@
+{
+  "output_dir": "./data/raw_videos",
+  "headless": true,
+  "delay_between_episodes": 5,
+  "anime": [
+    {
+      "anime_id": "hunter-x-hunter",
+      "season": "",
+      "episodes": [
+        {
+          "episode": 1,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-1"
+        },
+        {
+          "episode": 2,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-2"
+        },
+        {
+          "episode": 3,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-3"
+        },
+        {
+          "episode": 4,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-4"
+        },
+        {
+          "episode": 5,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-5"
+        },
+        {
+          "episode": 6,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-6"
+        },
+        {
+          "episode": 7,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-7"
+        },
+        {
+          "episode": 8,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-8"
+        },
+        {
+          "episode": 9,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-9"
+        },
+        {
+          "episode": 10,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-10"
+        },
+        {
+          "episode": 11,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-11"
+        },
+        {
+          "episode": 12,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-12"
+        },
+        {
+          "episode": 13,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-13"
+        },
+        {
+          "episode": 14,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-14"
+        },
+        {
+          "episode": 15,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-15"
+        },
+        {
+          "episode": 16,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-16"
+        },
+        {
+          "episode": 17,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-17"
+        },
+        {
+          "episode": 18,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-18"
+        },
+        {
+          "episode": 19,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-19"
+        },
+        {
+          "episode": 20,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-20"
+        },
+        {
+          "episode": 21,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-21"
+        },
+        {
+          "episode": 22,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-22"
+        },
+        {
+          "episode": 23,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-23"
+        },
+        {
+          "episode": 24,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-24"
+        },
+        {
+          "episode": 25,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-25"
+        },
+        {
+          "episode": 26,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-26"
+        },
+        {
+          "episode": 27,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-27"
+        },
+        {
+          "episode": 28,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-28"
+        },
+        {
+          "episode": 29,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-29"
+        },
+        {
+          "episode": 30,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-30"
+        },
+        {
+          "episode": 31,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-31"
+        },
+        {
+          "episode": 32,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-32"
+        },
+        {
+          "episode": 33,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-33"
+        },
+        {
+          "episode": 34,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-34"
+        },
+        {
+          "episode": 35,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-35"
+        },
+        {
+          "episode": 36,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-36"
+        },
+        {
+          "episode": 37,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-37"
+        },
+        {
+          "episode": 38,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-38"
+        },
+        {
+          "episode": 39,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-39"
+        },
+        {
+          "episode": 40,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-40"
+        },
+        {
+          "episode": 41,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-41"
+        },
+        {
+          "episode": 42,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-42"
+        },
+        {
+          "episode": 43,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-43"
+        },
+        {
+          "episode": 44,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-44"
+        },
+        {
+          "episode": 45,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-45"
+        },
+        {
+          "episode": 46,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-46"
+        },
+        {
+          "episode": 47,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-47"
+        },
+        {
+          "episode": 48,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-48"
+        },
+        {
+          "episode": 49,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-49"
+        },
+        {
+          "episode": 50,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-50"
+        },
+        {
+          "episode": 51,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-51"
+        },
+        {
+          "episode": 52,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-52"
+        },
+        {
+          "episode": 53,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-53"
+        },
+        {
+          "episode": 54,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-54"
+        },
+        {
+          "episode": 55,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-55"
+        },
+        {
+          "episode": 56,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-56"
+        },
+        {
+          "episode": 57,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-57"
+        },
+        {
+          "episode": 58,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-58"
+        },
+        {
+          "episode": 59,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-59"
+        },
+        {
+          "episode": 60,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-60"
+        },
+        {
+          "episode": 61,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-61"
+        },
+        {
+          "episode": 62,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-62"
+        },
+        {
+          "episode": 63,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-63"
+        },
+        {
+          "episode": 64,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-64"
+        },
+        {
+          "episode": 65,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-65"
+        },
+        {
+          "episode": 66,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-66"
+        },
+        {
+          "episode": 67,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-67"
+        },
+        {
+          "episode": 68,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-68"
+        },
+        {
+          "episode": 69,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-69"
+        },
+        {
+          "episode": 70,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-70"
+        },
+        {
+          "episode": 71,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-71"
+        },
+        {
+          "episode": 72,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-72"
+        },
+        {
+          "episode": 73,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-73"
+        },
+        {
+          "episode": 74,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-74"
+        },
+        {
+          "episode": 75,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-75"
+        },
+        {
+          "episode": 76,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-76"
+        },
+        {
+          "episode": 77,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-77"
+        },
+        {
+          "episode": 78,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-78"
+        },
+        {
+          "episode": 79,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-79"
+        },
+        {
+          "episode": 80,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-80"
+        },
+        {
+          "episode": 81,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-81"
+        },
+        {
+          "episode": 82,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-82"
+        },
+        {
+          "episode": 83,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-83"
+        },
+        {
+          "episode": 84,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-84"
+        },
+        {
+          "episode": 85,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-85"
+        },
+        {
+          "episode": 86,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-86"
+        },
+        {
+          "episode": 87,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-87"
+        },
+        {
+          "episode": 88,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-88"
+        },
+        {
+          "episode": 89,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-89"
+        },
+        {
+          "episode": 90,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-90"
+        },
+        {
+          "episode": 91,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-91"
+        },
+        {
+          "episode": 92,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-92"
+        },
+        {
+          "episode": 93,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-93"
+        },
+        {
+          "episode": 94,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-94"
+        },
+        {
+          "episode": 95,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-95"
+        },
+        {
+          "episode": 96,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-96"
+        },
+        {
+          "episode": 97,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-97"
+        },
+        {
+          "episode": 98,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-98"
+        },
+        {
+          "episode": 99,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-99"
+        },
+        {
+          "episode": 100,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-100"
+        },
+        {
+          "episode": 101,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-101"
+        },
+        {
+          "episode": 102,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-102"
+        },
+        {
+          "episode": 103,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-103"
+        },
+        {
+          "episode": 104,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-104"
+        },
+        {
+          "episode": 105,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-105"
+        },
+        {
+          "episode": 106,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-106"
+        },
+        {
+          "episode": 107,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-107"
+        },
+        {
+          "episode": 108,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-108"
+        },
+        {
+          "episode": 109,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-109"
+        },
+        {
+          "episode": 110,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-110"
+        },
+        {
+          "episode": 111,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-111"
+        },
+        {
+          "episode": 112,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-112"
+        },
+        {
+          "episode": 113,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-113"
+        },
+        {
+          "episode": 114,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-114"
+        },
+        {
+          "episode": 115,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-115"
+        },
+        {
+          "episode": 116,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-116"
+        },
+        {
+          "episode": 117,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-117"
+        },
+        {
+          "episode": 118,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-118"
+        },
+        {
+          "episode": 119,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-119"
+        },
+        {
+          "episode": 120,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-120"
+        },
+        {
+          "episode": 121,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-121"
+        },
+        {
+          "episode": 122,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-122"
+        },
+        {
+          "episode": 123,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-123"
+        },
+        {
+          "episode": 124,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-124"
+        },
+        {
+          "episode": 125,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-125"
+        },
+        {
+          "episode": 126,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-126"
+        },
+        {
+          "episode": 127,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-127"
+        },
+        {
+          "episode": 128,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-128"
+        },
+        {
+          "episode": 129,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-129"
+        },
+        {
+          "episode": 130,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-130"
+        },
+        {
+          "episode": 131,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-131"
+        },
+        {
+          "episode": 132,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-132"
+        },
+        {
+          "episode": 133,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-133"
+        },
+        {
+          "episode": 134,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-134"
+        },
+        {
+          "episode": 135,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-135"
+        },
+        {
+          "episode": 136,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-136"
+        },
+        {
+          "episode": 137,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-137"
+        },
+        {
+          "episode": 138,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-138"
+        },
+        {
+          "episode": 139,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-139"
+        },
+        {
+          "episode": 140,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-140"
+        },
+        {
+          "episode": 141,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-141"
+        },
+        {
+          "episode": 142,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-142"
+        },
+        {
+          "episode": 143,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-143"
+        },
+        {
+          "episode": 144,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-144"
+        },
+        {
+          "episode": 145,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-145"
+        },
+        {
+          "episode": 146,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-146"
+        },
+        {
+          "episode": 147,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-147"
+        },
+        {
+          "episode": 148,
+          "url": "https://vuighe.cam/hunter-x-hunter/tap-148"
+        }
+      ]
+    }
+  ]
+}

@@ -460,7 +460,13 @@ class BaseCrawler(ABC):
         ]
         
         try:
-            subprocess.run(cmd, check=True)
+            with open(os.devnull, 'w') as devnull:
+                subprocess.run(
+                    cmd, 
+                    check=True,
+                    stdout=devnull,  # "Hố đen" cho log thông thường
+                    stderr=devnull   # "Hố đen" cho log lỗi (FFmpeg ghi log vào stderr)
+                )
             
             if os.path.exists(output_path) and os.path.getsize(output_path) > 500000:
                 size_mb = os.path.getsize(output_path) / (1024 * 1024)

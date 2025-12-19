@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     MILVUS_HOST: str = os.getenv("MILVUS_HOST", "localhost")
     MILVUS_PORT: int = int(os.getenv("MILVUS_PORT", "19530"))
     MILVUS_COLLECTION: str = os.getenv("MILVUS_COLLECTION", "anime_frames")
-    VECTOR_DIM: int = int(os.getenv("VECTOR_DIM", "512"))
+    VECTOR_DIM: int = int(os.getenv("VECTOR_DIM", "1152"))  # SigLIP2: 1152
     
     # Elasticsearch Configuration
     ELASTIC_HOST: str = os.getenv("ELASTIC_HOST", "localhost")
@@ -40,7 +40,7 @@ class Settings(BaseSettings):
     
     # External Embedding Service Configuration
     AI_SERVICE_URL: str = os.getenv("AI_SERVICE_URL", "http://embedding-service:8000/v1/embeddings")
-    AI_MODEL: str = os.getenv("AI_MODEL", "clip")
+    AI_MODEL: str = os.getenv("AI_MODEL", "siglip2")
     AI_SERVICE_TIMEOUT: int = int(os.getenv("AI_SERVICE_TIMEOUT", "30"))  # seconds
     
     # Search Configuration

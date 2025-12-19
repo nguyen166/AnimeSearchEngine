@@ -1,4 +1,4 @@
-transformers>=4.37.0
+transformers>=4.49.0
 sentencepiece
 protobuf
 torch
@@ -7,3 +7,4 @@ flask
 uvicorn
 fastapi
 python-multipart
+accelerate

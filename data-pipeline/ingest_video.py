@@ -328,6 +328,17 @@ class VideoProcessor:
         if not cap.isOpened():
             raise Exception(f"Cannot open video: {video_path}")
         
+        # Get expected frame size from first frame
+        ret, first_frame = cap.read()
+        if not ret or first_frame is None:
+            cap.release()
+            raise Exception(f"Cannot read first frame from video: {video_path}")
+        
+        target_size = (first_frame.shape[1], first_frame.shape[0])  # (width, height)
+        logger.info(f"📐 Target frame size: {target_size[0]}x{target_size[1]}")
+        
+        skipped_frames = 0
+        
         # Extract keyframes from each scene
         for i, (start_time, end_time) in enumerate(scene_list):
             scene_start = start_time.get_seconds()
@@ -360,10 +371,28 @@ class VideoProcessor:
                 cap.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
                 ret, frame = cap.read()
                 
-                if ret:
+                if ret and frame is not None and frame.size > 0:
+                    current_size = (frame.shape[1], frame.shape[0])
+                    
+                    if current_size != target_size:
+                        # Try to resize frame to target size
+                        try:
+                            frame = cv2.resize(frame, target_size)
+                            logger.debug(f"📐 Resized frame at {timestamp:.2f}s from {current_size} to {target_size}")
+                        except Exception as e:
+                            logger.warning(f" frame at {timestamp:.2f}s ({current_size}), skipping: {e}")
+                            skipped_frames += 1
+                            continue
+                    
                     frames.append((timestamp, frame))
+                else:
+                    skipped_frames += 1
         
         cap.release()
+        
+        if skipped_frames > 0:
+            logger.warning(f" Skipped {skipped_frames} invalid/mismatched frames during scene extraction")
+        
         logger.info(f"📷 Extracted {len(frames)} keyframes from {len(scene_list)} scenes")
         
         return frames

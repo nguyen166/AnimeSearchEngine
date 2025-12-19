@@ -4,16 +4,47 @@ import uuid
 import time
 import asyncio
 import uvicorn
+import logging
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from schemas import ModelsResponse, Model, EmbeddingResponse
-from services.clip import clip_service
+from services.siglip2 import siglip2_service
 from configs.config import CONFIG
 from schemas import HealthStatus, EmbeddingRequest
 from dotenv import load_dotenv
 
 load_dotenv()
 
-app = FastAPI()
+logger = logging.getLogger(__name__)
+
+# Map model names to services
+MODEL_SERVICES = {
+    "siglip2": siglip2_service,
+}
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Startup and shutdown events for the FastAPI app."""
+    # Startup: Initialize all models
+    logger.info("🚀 Starting up embedding service...")
+    for model_name, service in MODEL_SERVICES.items():
+        logger.info(f"📦 Initializing {model_name} model...")
+        try:
+            await service.initialize_model()
+            logger.info(f"✅ {model_name} model initialized successfully")
+        except Exception as e:
+            logger.error(f"❌ Failed to initialize {model_name}: {e}")
+            raise
+    logger.info("✅ All models initialized, service ready!")
+    
+    yield
+    
+    # Shutdown
+    logger.info("🔌 Shutting down embedding service...")
+
+
+app = FastAPI(lifespan=lifespan)
 
 @app.get("/health", response_model=HealthStatus)
 async def health_check() -> HealthStatus:
@@ -22,9 +53,9 @@ async def health_check() -> HealthStatus:
 @app.get("/v1/models", response_model=ModelsResponse)
 async def list_models() -> ModelsResponse:
     model_cards = []
-    for model_config in CONFIG["models"].values():
+    for model_name, model_config in CONFIG["models"].items():
         model_cards.append(Model(
-            id=model_config["name"],
+            id=model_name,
             object="model",
             created=int(time.time()),
             owned_by="user",
@@ -40,7 +71,7 @@ async def embeddings(request: EmbeddingRequest) -> EmbeddingResponse:
     try:
         hosted_models = CONFIG["models"].keys()
         if request.model not in hosted_models:
-            raise HTTPException(status_code=400, detail=f"Model {request.model} not found")
+            raise HTTPException(status_code=400, detail=f"Model {request.model} not found. Available: {list(hosted_models)}")
         
         texts = request.texts
         b64_images = request.b64_images
@@ -56,9 +87,8 @@ async def embeddings(request: EmbeddingRequest) -> EmbeddingResponse:
         task_id = str(uuid.uuid4())
         
         # Select the appropriate service based on model
-        if request.model == "clip":
-            service = clip_service
-        else:
+        service = MODEL_SERVICES.get(request.model)
+        if service is None:
             raise HTTPException(status_code=400, detail=f"Unsupported model: {request.model}")
         
         # Process base64 images

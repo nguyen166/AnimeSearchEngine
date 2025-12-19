@@ -1,7 +1,7 @@
 """
 Search Service
-Implements Reciprocal Rank Fusion (RRF) for hybrid search
-combining Milvus (Vector Search) and Elasticsearch (Keyword Search)
+Implements Pure Vector Search using Milvus (CLIP Embeddings)
+Elasticsearch is used only for metadata enrichment, not for ranking.
 """
 
 import logging
@@ -34,14 +34,11 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-# RRF constant (standard value used in literature)
-RRF_K = 60
-
 
 class SearchService:
     """
-    Search service implementing Reciprocal Rank Fusion (RRF)
-    for hybrid semantic + keyword search
+    Search service implementing Pure Vector Search using CLIP embeddings.
+    Results are ranked solely by vector similarity from Milvus.
     """
     
     # ========================================================================
@@ -51,13 +48,10 @@ class SearchService:
     @staticmethod
     def search_by_text(request: TextSearchRequest) -> SearchResponse:
         """
-        Text search using Reciprocal Rank Fusion (RRF)
+        Text search using Pure Vector Search (CLIP Embeddings)
         
-        Combines:
-        - Milvus: Vector similarity search (semantic)
-        - Elasticsearch: Keyword/metadata search
-        
-        RRF Formula: score = Σ 1/(k + rank) for each source
+        Results are ranked solely by vector similarity from Milvus.
+        Elasticsearch is used only for metadata enrichment.
         
         Args:
             request: TextSearchRequest with text, mode, collection, top_k, state_id
@@ -72,37 +66,27 @@ class SearchService:
             top_k = request.top_k
             mode = request.mode
             
-            logger.info(f"Starting RRF text search: '{text_query}' (top_k={top_k})")
+            logger.info(f"Starting vector search: '{text_query}' (top_k={top_k})")
             
-            # Step 1: Get results from both sources (fetch more for RRF merging)
-            fetch_limit = top_k * 2
+            # Step 1: Generate embedding from text
+            logger.info("Encoding text query...")
+            query_embedding = embedding_service.encode_text(text_query)
             
-            # Step 1a: Milvus Vector Search (use original query directly)
-            logger.info(f"Performing Milvus vector search (limit={fetch_limit})...")
-            vector_results = SearchService._search_milvus(text_query, fetch_limit)
-            logger.info(f"Milvus returned {len(vector_results)} results")
+            # Step 2: Search Milvus (vector similarity)
+            logger.info(f"Searching Milvus for top {top_k} results...")
+            raw_results = milvus_client.search(
+                query_vectors=[query_embedding],
+                top_k=top_k,
+                filters=None
+            )[0]  # Single query
             
-            # Step 2b: Elasticsearch Keyword Search
-            logger.info(f"Performing Elasticsearch keyword search (limit={fetch_limit})...")
-            keyword_results = SearchService._search_elasticsearch(text_query, fetch_limit)
-            logger.info(f"Elasticsearch returned {len(keyword_results)} results")
+            logger.info(f"Milvus returned {len(raw_results)} results")
             
-            # Step 3: Apply Reciprocal Rank Fusion
-            logger.info("Applying Reciprocal Rank Fusion (RRF)...")
-            fused_results = SearchService._apply_rrf(
-                vector_results=vector_results,
-                keyword_results=keyword_results,
-                k=RRF_K
-            )
+            # Step 3: Enrich with metadata from Elasticsearch
+            enriched_results = SearchService._enrich_vector_results(raw_results)
             
-            # Step 4: Sort by RRF score and take top_k
-            sorted_results = sorted(
-                fused_results.items(),
-                key=lambda x: x[1]['rrf_score'],
-                reverse=True
-            )[:top_k]
-            
-            logger.info(f"RRF produced {len(sorted_results)} final results")
+            # Step 4: Format as (id, data) tuples for clustering
+            sorted_results = [(r['id'], r) for r in enriched_results]
             
             # Step 5: Convert to API response format
             clusters = SearchService._format_results_as_clusters(sorted_results, mode)
@@ -111,7 +95,7 @@ class SearchService:
             state_id = str(uuid.uuid4())
             
             processing_time = time.time() - start_time
-            logger.info(f"Text search completed in {processing_time:.3f}s")
+            logger.info(f"Vector search completed in {processing_time:.3f}s")
             
             return SearchResponse(
                 status="success",
@@ -151,7 +135,7 @@ class SearchService:
         
         try:
             mode = request.mode
-            top_k = 256  # Default for visual search
+            top_k = 32  # Default for visual search
             
             logger.info(f"Starting visual search (top_k={top_k})")
             
@@ -250,8 +234,12 @@ class SearchService:
             
             # Average embeddings if multiple
             if len(embeddings) > 1:
-                import numpy as np
-                query_embedding = np.mean(embeddings, axis=0).tolist()
+                # Manual averaging without numpy
+                num_dims = len(embeddings[0])
+                query_embedding = [
+                    sum(emb[i] for emb in embeddings) / len(embeddings)
+                    for i in range(num_dims)
+                ]
             else:
                 query_embedding = embeddings[0]
             
@@ -297,85 +285,57 @@ class SearchService:
     @staticmethod
     def search_temporal(request: TemporalSearchRequest) -> SearchResponse:
         """
-        Temporal search for before/now/after scene sequences
-        Supports both text and image queries for each temporal component.
-        
-        Args:
-            request: TemporalSearchRequest with before, now, after queries (text and/or image)
-            
-        Returns:
-            SearchResponse with results grouped as scenes with 3 frames each
+        Temporal search for before/now/after scene sequences with Temporal Alignment.
         """
         start_time = time.time()
         
         try:
-            top_k = request.top_k
+            # Lấy top_k lớn hơn một chút để có đủ dữ liệu cho việc khớp (alignment)
+            search_limit = request.top_k * 3 
+            
+            # Mặc định cửa sổ thời gian (nếu request không có thì dùng 120s)
+            time_window = getattr(request, 'time_window', 120) 
             mode = request.mode if hasattr(request, 'mode') else "moment"
             
-            # Extract text and image queries
+            # Extract text queries
             before_text = request.before.text if request.before else None
-            before_image = request.before.image if request.before and hasattr(request.before, 'image') else None
             now_text = request.now.text if request.now else None
-            now_image = request.now.image if request.now and hasattr(request.now, 'image') else None
             after_text = request.after.text if request.after else None
-            after_image = request.after.image if request.after and hasattr(request.after, 'image') else None
             
-            logger.info(f"Temporal search: before='{before_text}' (img={bool(before_image)}), "
-                       f"now='{now_text}' (img={bool(now_image)}), after='{after_text}' (img={bool(after_image)})")
+            if not now_text:
+                raise ValueError("Query 'Now' is required for temporal search")
+
+            logger.info(f"Temporal search: before='{before_text}', now='{now_text}', after='{after_text}'")
             
-            # Search for each temporal component
-            results_map = {}
+            # 1. Thực hiện tìm kiếm độc lập (Independent Search)
             
-            # Before component
-            if before_text or before_image:
-                if before_image:
-                    # Visual search
-                    before_resp = SearchService.search_visual(
-                        collection="frames",
-                        mode=mode,
-                        text=before_text,
-                        base64_images=[before_image] if before_image else []
-                    )
-                else:
-                    # Text search
-                    before_req = TextSearchRequest(text=before_text, top_k=top_k)
-                    before_resp = SearchService.search_by_text(before_req)
-                results_map['before'] = before_resp.results
+            # Search NOW (Bắt buộc)
+            now_emb = embedding_service.encode_text(now_text)
+            raw_now = milvus_client.search([now_emb], top_k=search_limit)[0]
+            results_now = SearchService._enrich_vector_results(raw_now)
             
-            # Now component
-            if now_text or now_image:
-                if now_image:
-                    # Visual search
-                    now_resp = SearchService.search_visual(
-                        collection="frames",
-                        mode=mode,
-                        text=now_text,
-                        base64_images=[now_image] if now_image else []
-                    )
-                else:
-                    # Text search
-                    now_req = TextSearchRequest(text=now_text, top_k=top_k)
-                    now_resp = SearchService.search_by_text(now_req)
-                results_map['now'] = now_resp.results
-            
-            # After component
-            if after_text or after_image:
-                if after_image:
-                    # Visual search
-                    after_resp = SearchService.search_visual(
-                        collection="frames",
-                        mode=mode,
-                        text=after_text,
-                        base64_images=[after_image] if after_image else []
-                    )
-                else:
-                    # Text search
-                    after_req = TextSearchRequest(text=after_text, top_k=top_k)
-                    after_resp = SearchService.search_by_text(after_req)
-                results_map['after'] = after_resp.results
-            
-            # Combine results into temporal clusters
-            clusters = SearchService._combine_temporal_results(results_map, top_k)
+            # Search BEFORE (Optional)
+            results_before = []
+            if before_text:
+                before_emb = embedding_service.encode_text(before_text)
+                raw_before = milvus_client.search([before_emb], top_k=search_limit)[0]
+                results_before = SearchService._enrich_vector_results(raw_before)
+                
+            # Search AFTER (Optional)
+            results_after = []
+            if after_text:
+                after_emb = embedding_service.encode_text(after_text)
+                raw_after = milvus_client.search([after_emb], top_k=search_limit)[0]
+                results_after = SearchService._enrich_vector_results(raw_after)
+
+            # 2. Temporal Alignment (Khớp thời gian)
+            aligned_clusters = SearchService._align_temporal_results(
+                results_now, 
+                results_before, 
+                results_after, 
+                time_window=time_window,
+                top_k=request.top_k
+            )
             
             state_id = str(uuid.uuid4())
             processing_time = time.time() - start_time
@@ -384,7 +344,7 @@ class SearchService:
                 status="success",
                 state_id=state_id,
                 mode=mode,
-                results=clusters,
+                results=aligned_clusters,
                 processing_time=processing_time
             )
             
@@ -398,11 +358,138 @@ class SearchService:
                 results=[],
                 processing_time=processing_time
             )
+
+    @staticmethod
+    def _align_temporal_results(
+        results_now: List[Dict],
+        results_before: List[Dict],
+        results_after: List[Dict],
+        time_window: int,
+        top_k: int
+    ) -> List[ClusterResult]:
+        """
+        Core logic: Align Independent search results by Video ID and Timestamp.
+        Strategy: Min-Score Selection & Ascending Sort (Lower score is better).
+        """
+        
+        # Tối ưu hóa: Gom nhóm Before và After theo anime_id để tìm kiếm nhanh
+        before_map = defaultdict(list)
+        for r in results_before:
+            before_map[r['anime_id']].append(r)
+            
+        after_map = defaultdict(list)
+        for r in results_after:
+            after_map[r['anime_id']].append(r)
+            
+        final_sequences = []
+        
+        for now_item in results_now:
+            anime_id = now_item['anime_id']
+            now_ts = now_item['timestamp']
+            current_score = now_item['score']
+            
+            sequence_items = []
+            
+            # --- 1. Find Best BEFORE ---
+            best_before = None
+            if results_before:
+                candidates = before_map.get(anime_id, [])
+                # Khởi tạo score là vô cùng lớn để tìm MIN
+                best_match_score = float('inf')
+                
+                for cand in candidates:
+                    ts = cand['timestamp']
+                    # Điều kiện: Cùng video, Trước 'Now', Trong khoảng time_window
+                    if 0 <= (now_ts - ts) <= time_window:
+                        # Logic: Chọn điểm THẤP NHẤT (Lower is Better)
+                        if cand['score'] < best_match_score:
+                            best_match_score = cand['score']
+                            best_before = cand
+                
+                # Nếu có query Before mà không tìm thấy -> Bỏ qua
+                if not best_before:
+                    continue
+            
+            # --- 2. Find Best AFTER ---
+            best_after = None
+            if results_after:
+                candidates = after_map.get(anime_id, [])
+                best_match_score = float('inf')
+                
+                for cand in candidates:
+                    ts = cand['timestamp']
+                    # Điều kiện: Sau 'Now', Trong khoảng time_window
+                    if 0 <= (ts - now_ts) <= time_window:
+                        # Logic: Chọn điểm THẤP NHẤT
+                        if cand['score'] < best_match_score:
+                            best_match_score = cand['score']
+                            best_after = cand
+                            
+                if not best_after:
+                    continue
+
+            # --- 3. Construct Sequence ---
+            
+            # Add Before Item
+            if best_before:
+                img = SearchService._convert_dict_to_image_item(best_before)
+                img.temporalPosition = 'before'
+                sequence_items.append(img)
+                current_score += best_before['score']
+            
+            # Add Now Item
+            img_now = SearchService._convert_dict_to_image_item(now_item)
+            img_now.temporalPosition = 'now'
+            sequence_items.append(img_now)
+            
+            # Add After Item
+            if best_after:
+                img_after = SearchService._convert_dict_to_image_item(best_after)
+                img_after.temporalPosition = 'after'
+                sequence_items.append(img_after)
+                current_score += best_after['score']
+            
+            # Tính điểm trung bình cho cả chuỗi
+            avg_score = current_score / len(sequence_items)
+            
+            final_sequences.append({
+                "score": avg_score,
+                "items": sequence_items,
+                "video_url": now_item.get('source_url') or now_item.get('video_url')
+            })
+            
+        # Sắp xếp Giảm DẦN (Descending) theo yêu cầu của bạn
+        # Top 1 sẽ là chuỗi có Score thấp nhất
+        final_sequences.sort(key=lambda x: x['score'], reverse=True)
+        
+        # Convert to ClusterResult format
+        clusters = []
+        for idx, seq in enumerate(final_sequences[:top_k]):
+            clusters.append(ClusterResult(
+                cluster_name=f"Sequence {idx + 1} (Score: {seq['score']:.2f})",
+                url=seq['video_url'],
+                image_list=seq['items']
+            ))
+            
+        return clusters
+
+    @staticmethod
+    def _convert_dict_to_image_item(data: Dict) -> ImageItem:
+        """Helper to convert dictionary data to ImageItem model"""
+        return ImageItem(
+            id=data['id'],
+            path=f"/static/{data.get('frame_path', '')}",
+            score=data.get('score', 0),
+            time_in_seconds=data.get('timestamp', 0.0),
+            name=f"Frame at {data.get('timestamp', 0):.1f}s",
+            videoId=data.get('anime_id', ''),
+            videoName=data.get('anime_title', '')
+        )
     
     @staticmethod
     def search_with_filters(request: FilterSearchRequest) -> SearchResponse:
         """
-        Filter-based search with optional text query
+        Filter-based search with optional text query using Pure Vector Search
         
         Args:
             request: FilterSearchRequest with filters (ocr, genre) and optional text
@@ -420,38 +507,53 @@ class SearchService:
             
             logger.info(f"Filter search: text='{text_query}', filters={filters}")
             
-            # Build Elasticsearch filter query
-            es_filters = {}
+            # Build filter criteria for post-filtering
+            filter_criteria = {}
             if filters:
                 if filters.ocr:
-                    es_filters['ocr'] = filters.ocr
+                    filter_criteria['ocr'] = filters.ocr
                 if filters.genre:
-                    es_filters['genre'] = filters.genre
+                    filter_criteria['genre'] = filters.genre
             
-            # If text query provided, use RRF hybrid search with filters
             if text_query:
-                fetch_limit = top_k * 2
+                # Vector search with text query
+                logger.info("Encoding text query...")
+                query_embedding = embedding_service.encode_text(text_query)
                 
-                # Vector search (no direct filter support in Milvus, filter post-retrieval)
-                vector_results = SearchService._search_milvus(text_query, fetch_limit)
+                # Search Milvus - fetch more if we need to filter
+                fetch_limit = top_k * 3 if filter_criteria else top_k
                 
-                # Elasticsearch search with filters
-                keyword_results = SearchService._search_elasticsearch(
-                    text_query, fetch_limit, es_filters
-                )
+                logger.info(f"Searching Milvus for top {fetch_limit} results...")
+                raw_results = milvus_client.search(
+                    query_vectors=[query_embedding],
+                    top_k=fetch_limit,
+                    filters=None
+                )[0]
                 
-                # Apply RRF
-                fused_results = SearchService._apply_rrf(vector_results, keyword_results, RRF_K)
+                # Enrich with metadata
+                enriched_results = SearchService._enrich_vector_results(raw_results)
                 
-                sorted_results = sorted(
-                    fused_results.items(),
-                    key=lambda x: x[1]['rrf_score'],
-                    reverse=True
-                )[:top_k]
+                # Apply filters in Python if needed
+                if filter_criteria:
+                    enriched_results = SearchService._apply_filters_to_results(
+                        enriched_results, filter_criteria
+                    )
+                
+                # Limit to top_k
+                enriched_results = enriched_results[:top_k]
+                sorted_results = [(r['id'], r) for r in enriched_results]
                 
             else:
-                # Filter-only search via Elasticsearch
-                keyword_results = SearchService._search_elasticsearch(
+                # Filter-only search via Elasticsearch (no vector ranking)
+                logger.info("Performing filter-only search via Elasticsearch...")
+                es_filters = {}
+                if filters:
+                    if filters.ocr:
+                        es_filters['ocr'] = filters.ocr
+                    if filters.genre:
+                        es_filters['genre'] = filters.genre
+                        
+                keyword_results = SearchService._search_elasticsearch_metadata(
                     "*", top_k, es_filters
                 )
                 sorted_results = [(r['id'], r) for r in keyword_results]
@@ -481,129 +583,64 @@ class SearchService:
             )
     
     # ========================================================================
-    # RRF Implementation
+    # Helper Methods for Vector Search
     # ========================================================================
     
     @staticmethod
-    def _apply_rrf(
-        vector_results: List[Dict[str, Any]],
-        keyword_results: List[Dict[str, Any]],
-        k: int = 60
-    ) -> Dict[str, Dict[str, Any]]:
-        """
-        Apply Reciprocal Rank Fusion to combine results from multiple sources
-        
-        RRF Score = Σ 1/(k + rank) for each source where the document appears
-        
-        Args:
-            vector_results: Results from Milvus vector search (ordered by similarity)
-            keyword_results: Results from Elasticsearch keyword search (ordered by relevance)
-            k: RRF constant (default=60, standard in literature)
-            
-        Returns:
-            Dictionary mapping document_id to {document_data, rrf_score, ranks}
-        """
-        fused = {}
-        
-        # Process vector results (assign rank 1, 2, 3, ...)
-        for rank, result in enumerate(vector_results, start=1):
-            doc_id = result.get('id', '')
-            if not doc_id:
-                continue
-            
-            rrf_score = 1.0 / (k + rank)
-            
-            if doc_id not in fused:
-                fused[doc_id] = {
-                    **result,
-                    'rrf_score': rrf_score,
-                    'vector_rank': rank,
-                    'keyword_rank': None
-                }
-            else:
-                fused[doc_id]['rrf_score'] += rrf_score
-                fused[doc_id]['vector_rank'] = rank
-        
-        # Process keyword results (assign rank 1, 2, 3, ...)
-        for rank, result in enumerate(keyword_results, start=1):
-            doc_id = result.get('id', '')
-            if not doc_id:
-                continue
-            
-            rrf_score = 1.0 / (k + rank)
-            
-            if doc_id not in fused:
-                fused[doc_id] = {
-                    **result,
-                    'rrf_score': rrf_score,
-                    'vector_rank': None,
-                    'keyword_rank': rank
-                }
-            else:
-                fused[doc_id]['rrf_score'] += rrf_score
-                fused[doc_id]['keyword_rank'] = rank
-        
-        logger.debug(f"RRF fused {len(fused)} unique documents")
-        
-        return fused
-    
-    # ========================================================================
-    # Search Source Methods
-    # ========================================================================
-    
-    @staticmethod
-    def _search_milvus(
-        text_query: str,
-        limit: int,
-        filters: Optional[str] = None
+    def _apply_filters_to_results(
+        results: List[Dict[str, Any]],
+        filters: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
         """
-        Search Milvus using text embedding
+        Apply filters to search results in Python
         
         Args:
-            text_query: Text query (should be in English for best results)
-            limit: Maximum number of results
-            filters: Optional Milvus filter expression
+            results: List of enriched search results
+            filters: Dictionary of filter criteria (ocr, genre, etc.)
             
         Returns:
-            List of results with id, anime_id, episode, timestamp, score, etc.
+            Filtered list of results
         """
-        try:
-            # Generate text embedding
-            query_embedding = embedding_service.encode_text(text_query)
+        if not filters:
+            return results
+        
+        filtered = []
+        for r in results:
+            match = True
             
-            # Search Milvus
-            raw_results = milvus_client.search(
-                query_vectors=[query_embedding],
-                top_k=limit,
-                filters=filters
-            )[0]  # Single query
+            # OCR filter
+            if 'ocr' in filters and filters['ocr']:
+                ocr_text = r.get('ocr', '') or ''
+                if not any(term.lower() in ocr_text.lower() for term in filters['ocr']):
+                    match = False
             
-            # Enrich with metadata
-            enriched = SearchService._enrich_vector_results(raw_results)
+            # Genre filter
+            if 'genre' in filters and filters['genre']:
+                genres = r.get('genres', []) or []
+                if not any(g in genres for g in filters['genre']):
+                    match = False
             
-            return enriched
-            
-        except Exception as e:
-            logger.error(f"Milvus search failed: {e}")
-            return []
+            if match:
+                filtered.append(r)
+        
+        return filtered
     
     @staticmethod
-    def _search_elasticsearch(
+    def _search_elasticsearch_metadata(
         text_query: str,
         limit: int,
         filters: Optional[Dict[str, Any]] = None
     ) -> List[Dict[str, Any]]:
         """
-        Search Elasticsearch using keyword matching
+        Search Elasticsearch for metadata lookup only (not for ranking)
         
         Args:
-            text_query: Text query
+            text_query: Text query or "*" for all
             limit: Maximum number of results
             filters: Optional filters (genre, ocr, etc.)
             
         Returns:
-            List of results with id, anime_id, episode, timestamp, score, etc.
+            List of results with metadata
         """
         try:
             # Search Elasticsearch
@@ -627,7 +664,7 @@ class SearchService:
                             'episode': frame.get('episode', 1),
                             'timestamp': frame.get('timestamp', 0.0),
                             'frame_path': frame.get('frame_path', ''),
-                            'score': doc.get('_score', 1.0),
+                            'score': 1.0,  # No ranking score for metadata lookup
                             'video_url': doc.get('video_url', ''),
                             'source_url': doc.get('source_url', '')
                         })
@@ -640,7 +677,7 @@ class SearchService:
                         'episode': doc.get('episode', 1),
                         'timestamp': doc.get('timestamp', 0.0),
                         'frame_path': doc.get('frame_path', ''),
-                        'score': doc.get('_score', 1.0),
+                        'score': 1.0,  # No ranking score for metadata lookup
                         'video_url': doc.get('video_url', ''),
                         'source_url': doc.get('source_url', '')
                     })
@@ -648,11 +685,11 @@ class SearchService:
             return normalized
             
         except Exception as e:
-            logger.error(f"Elasticsearch search failed: {e}")
+            logger.error(f"Elasticsearch metadata search failed: {e}")
             return []
     
     # ========================================================================
-    # Helper Methods
+    # Other Helper Methods
     # ========================================================================
     
     @staticmethod
@@ -719,10 +756,12 @@ class SearchService:
                 metadata = None
             
             # Convert distance to similarity score
-            distance = vr.get('score', vr.get('distance', 0))
-            # For COSINE distance: similarity = 1 - distance
-            # For L2 distance: similarity = 1 / (1 + distance)
-            similarity = max(0, 1 - distance) if distance <= 1 else 1 / (1 + distance)
+            # distance = vr.get('score', vr.get('distance', 0))
+            # # For COSINE distance: similarity = 1 - distance
+            # # For L2 distance: similarity = 1 / (1 + distance)
+            # similarity = max(0, 1 - distance) if distance <= 1 else 1 / (1 + distance)
+            similarity = vr.get('score', 0.0)
+            
             
             enriched.append({
                 'id': doc_id,
@@ -735,7 +774,8 @@ class SearchService:
                 'title': metadata.get('title', '') if metadata else '',
                 'description': metadata.get('description', '') if metadata else '',
                 'source_url': metadata.get('source_url', '') if metadata else '',
-                'video_url': metadata.get('video_url', '') if metadata else ''
+                'video_url': metadata.get('video_url', '') if metadata else '',
+                
             })
         
         return enriched
@@ -757,7 +797,7 @@ class SearchService:
         Returns:
             List of ClusterResult objects
         """
-        if mode == "moment":
+        if mode == "video":
             # Group by anime + episode
             groups = defaultdict(list)
             group_urls = {}  # Store video_url for each group
@@ -786,7 +826,7 @@ class SearchService:
                 image_item = ImageItem(
                     id=doc_id,
                     path=f"/static/{frame_path}",
-                    score=doc_data.get('rrf_score', doc_data.get('score', 0)),
+                    score=doc_data.get('score', 0),
                     time_in_seconds=doc_data.get('timestamp', 0.0),
                     name=f"Frame at {doc_data.get('timestamp', 0):.1f}s",
                     videoId=anime_id,
@@ -834,7 +874,7 @@ class SearchService:
                 items.append(ImageItem(
                     id=doc_id,
                     path=f"/static/{frame_path}",
-                    score=doc_data.get('rrf_score', doc_data.get('score', 0)),
+                    score=doc_data.get('score', 0),
                     time_in_seconds=doc_data.get('timestamp', 0.0),
                     name=f"Frame at {doc_data.get('timestamp', 0):.1f}s",
                     videoId=doc_data.get('anime_id', ''),

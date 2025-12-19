@@ -29,7 +29,7 @@ from app.models.schemas import (
     TemporalPair
 )
 from app.services.search import search_service
-from app.services.translation import query_refinement_service
+from app.services.translation import query_refinement_service, translation_service
 from app.core.milvus import milvus_client
 from app.core.elastic import elastic_client
 
@@ -44,9 +44,9 @@ router = APIRouter()
 @router.post("/text", response_model=SearchResponse)
 async def text_search(request: TextSearchRequest):
     """
-    Text-based search using Reciprocal Rank Fusion (RRF)
+    Text-based search using Pure Vector Search (CLIP Embeddings)
     
-    Combines semantic (vector) and keyword search for optimal results.
+    Results are ranked solely by vector similarity from Milvus.
     
     - **text**: Search query text (required)
     - **mode**: Clustering mode - "moment", "timeline", "video" (default: "moment")
@@ -54,11 +54,11 @@ async def text_search(request: TextSearchRequest):
     - **top_k**: Number of results (1-1000, default: 256)
     - **state_id**: Optional state ID for follow-up searches
     
-    **RRF Algorithm:**
-    - Step 1: Get top_k*2 results from Milvus (vector search)
-    - Step 2: Get top_k*2 results from Elasticsearch (keyword search)
-    - Step 3: Apply RRF: Score = Σ 1/(60 + rank) for each source
-    - Step 4: Sort by RRF score and return top_k results
+    **Algorithm:**
+    - Step 1: Generate CLIP text embedding from query
+    - Step 2: Search Milvus for top_k nearest vectors (cosine similarity)
+    - Step 3: Enrich results with metadata from Elasticsearch
+    - Step 4: Return sorted by vector similarity score
     """
     try:
         logger.info(f"Text search: '{request.text}' (mode={request.mode}, top_k={request.top_k})")
@@ -273,7 +273,7 @@ async def legacy_search_anime(request: SearchRequest):
         
         # Perform search using legacy methods
         if has_image and has_text:
-            # Hybrid search - use text search with RRF
+            # Hybrid search - use vector search
             logger.info("Performing hybrid search...")
             text_req = TextSearchRequest(
                 text=request.text_query,
@@ -291,7 +291,7 @@ async def legacy_search_anime(request: SearchRequest):
             # Convert to SearchResponse format
             return response
         else:
-            # Text search only with RRF
+            # Text search only with vector search
             logger.info("Performing text search...")
             text_req = TextSearchRequest(
                 text=request.text_query,

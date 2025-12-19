@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 # Configuration từ environment variables
 AI_SERVICE_URL = os.getenv("AI_SERVICE_URL", "http://embedding-service:8000/v1/embeddings")
-AI_MODEL = os.getenv("AI_MODEL", "clip")
+AI_MODEL = os.getenv("AI_MODEL", "siglip2")
 REQUEST_TIMEOUT = int(os.getenv("AI_SERVICE_TIMEOUT", "30"))  # seconds
 
 

@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     # AI Service Configuration
     # ========================================================================
     AI_SERVICE_URL: str = "http://localhost:8001/v1/embeddings"
-    AI_MODEL: str = "clip"
+    AI_MODEL: str = "siglip2"
     AI_SERVICE_TIMEOUT: int = 120
     
     # ========================================================================
@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     MILVUS_PORT: int = 19530
     MILVUS_URI: Optional[str] = None  # Alternative to host:port
     MILVUS_COLLECTION: str = "anime_frames"
-    VECTOR_DIM: int = 512  # CLIP: 512, SigLIP2: 1152
+    VECTOR_DIM: int = 1152  # SigLIP2: 1152, CLIP: 512
     MILVUS_USER: Optional[str] = None
     MILVUS_PASSWORD: Optional[str] = None
     

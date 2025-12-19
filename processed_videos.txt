@@ -1,2 +1,14 @@
 D:\2025-2026\Term1\IR\AnimeSearchEngine\AnimeSearchEngine\data-pipeline\data\raw_videos\one-piece_ep001.mp4
 D:\2025-2026\Term1\IR\AnimeSearchEngine\AnimeSearchEngine\data-pipeline\data\raw_videos\one-piece_ep002.mp4
+D:\2025-2026\Term1\IR\AnimeSearchEngine\AnimeSearchEngine\data-pipeline\data\raw_videos\hunter-x-hunter_ep001.mp4
+D:\2025-2026\Term1\IR\AnimeSearchEngine\AnimeSearchEngine\data-pipeline\data\raw_videos\hunter-x-hunter_ep002.mp4
+D:\2025-2026\Term1\IR\AnimeSearchEngine\AnimeSearchEngine\data-pipeline\data\raw_videos\hunter-x-hunter_ep003.mp4D:\2025-2026\Term1\IR\AnimeSearchEngine\AnimeSearchEngine\data-pipeline\data\raw_videos\hunter-x-hunter_ep004.mp4
+D:\2025-2026\Term1\IR\AnimeSearchEngine\AnimeSearchEngine\data-pipeline\data\raw_videos\hunter-x-hunter_ep005.mp4
+D:\2025-2026\Term1\IR\AnimeSearchEngine\AnimeSearchEngine\data-pipeline\data\raw_videos\hunter-x-hunter_ep006.mp4
+D:\2025-2026\Term1\IR\AnimeSearchEngine\AnimeSearchEngine\data-pipeline\data\raw_videos\hunter-x-hunter_ep007.mp4
+D:\2025-2026\Term1\IR\AnimeSearchEngine\AnimeSearchEngine\data-pipeline\data\raw_videos\hunter-x-hunter_ep008.mp4
+D:\2025-2026\Term1\IR\AnimeSearchEngine\AnimeSearchEngine\data-pipeline\data\raw_videos\hunter-x-hunter_ep009.mp4
+D:\2025-2026\Term1\IR\AnimeSearchEngine\AnimeSearchEngine\data-pipeline\data\raw_videos\hunter-x-hunter_ep010.mp4
+D:\2025-2026\Term1\IR\AnimeSearchEngine\AnimeSearchEngine\data-pipeline\data\raw_videos\hunter-x-hunter_ep011.mp4
+D:\2025-2026\Term1\IR\AnimeSearchEngine\AnimeSearchEngine\data-pipeline\data\raw_videos\hunter-x-hunter_ep012.mp4
+D:\2025-2026\Term1\IR\AnimeSearchEngine\AnimeSearchEngine\data-pipeline\data\raw_videos\hunter-x-hunter_ep013.mp4
